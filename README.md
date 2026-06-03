@@ -1,321 +1,226 @@
 <p align="center" style="font-size:2rem;"><strong>Domotic Home</strong></p>
-<p align="center" style="font-size:1.25rem; margin-top:-1em;"><em>Scaffold segmentado para sistema domótico en enfoque C puro</em></p>
+<p align="center" style="font-size:1.25rem; margin-top:-1em;"><em>Sistema domótico modular en C puro para ATmega2560</em></p>
 
 <p align="center">
   <strong>Plataforma objetivo</strong>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Arduino-Mega_2560-555555?labelColor=00979D&logo=arduino&logoColor=white" alt="Arduino Mega 2560" />
+  <img src="https://img.shields.io/badge/MCU-ATmega2560-555555?labelColor=00979D&logo=arduino&logoColor=white" alt="ATmega2560" />
   <img src="https://img.shields.io/badge/Lenguaje-C_puro-555555?labelColor=283593&logo=c&logoColor=white" alt="C puro" />
-  <img src="https://img.shields.io/badge/Arquitectura-Modular-555555?labelColor=37474F" alt="Arquitectura modular" />
-  <img src="https://img.shields.io/badge/Estado-Scaffold-555555?labelColor=6A1B9A" alt="Estado scaffold" />
+  <img src="https://img.shields.io/badge/Librerias-Solo_propias-555555?labelColor=37474F" alt="Sin librerías externas" />
+  <img src="https://img.shields.io/badge/Arquitectura-Maquina_de_estados-555555?labelColor=6A1B9A" alt="Máquina de estados" />
 </p>
 
 <p align="center">
-  <strong>Interfaces de vivienda</strong>
+  <strong>Interfaces y subsistemas</strong>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/RFID-Control_de_acceso-555555?labelColor=1565C0" alt="RFID" />
-  <img src="https://img.shields.io/badge/LCD-Salida_local-555555?labelColor=2E7D32" alt="LCD" />
-  <img src="https://img.shields.io/badge/Serial-Telemetría_y_comandos-555555?labelColor=EF6C00" alt="Serial" />
-  <img src="https://img.shields.io/badge/PWM-Luz_y_audio-555555?labelColor=5D4037" alt="PWM" />
+  <img src="https://img.shields.io/badge/RFID-RC522-555555?labelColor=1565C0" alt="RFID RC522" />
+  <img src="https://img.shields.io/badge/LCD-Interfaz_local-555555?labelColor=2E7D32" alt="LCD" />
+  <img src="https://img.shields.io/badge/Keypad-4x4-555555?labelColor=455A64" alt="Teclado matricial" />
+  <img src="https://img.shields.io/badge/Serial-Telemetria-555555?labelColor=EF6C00" alt="Serial" />
+  <img src="https://img.shields.io/badge/EEPROM-Persistencia-555555?labelColor=5D4037" alt="EEPROM" />
 </p>
 
-<p align="center">
-  <strong>Subsistemas esperados</strong>
-</p>
+## Descripción
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Seguridad-Alarmas_y_sensores-555555?labelColor=C62828" alt="Seguridad" />
-  <img src="https://img.shields.io/badge/Accesos-RFID_y_puertas-555555?labelColor=283593" alt="Accesos" />
-  <img src="https://img.shields.io/badge/Confort-Luz_y_temperatura-555555?labelColor=00838F" alt="Confort" />
-  <img src="https://img.shields.io/badge/Remoto-Horno_sonido_mercado-555555?labelColor=6D4C41" alt="Remoto" />
-</p>
+`domotic-home` es el firmware de un sistema domótico académico para vivienda, implementado sobre **ATmega2560** con enfoque procedural en **C puro**. El sistema integra seguridad, control de accesos RFID, interfaz local por LCD y teclado matricial, persistencia en EEPROM, actuadores reales/simulados y reporte de eventos por puerto serial.
 
-## Decisión de arquitectura
+El alcance fue cerrado para evitar vender una casa domótica ficticia: varios actuadores del enunciado se representarán mediante LEDs, PWM, relé, servomotor o estados visibles en LCD/serial. Lo importante de la entrega es demostrar una arquitectura coherente, no una maqueta sobreactuada con funciones inconexas.
 
-Este repositorio quedó reiniciado como **scaffold segmentado**. El código previo fue vaciado por solicitud y ahora cada conjunto vive en una carpeta separada para reconstruir el sistema con **criterio procedural de C puro**: interfaz en encabezados, implementación en archivos `.c`, estado compartido centralizado y flujo principal aislado.
+## Decisiones cerradas del proyecto
 
-El objetivo funcional sigue siendo sistema domótico para vivienda con dos alarmas, RFID, control de accesos, climatización, iluminación dimerizada, horno remoto, sonido remoto, lista de mercado y salida local por LCD. Sin embargo, **estado actual del repositorio = solo estructura vacía**.
+| Decisión | Definición |
+|---|---|
+| Microcontrolador | **ATmega2560 / Arduino Mega 2560** |
+| Lenguaje | C puro, sin librerías externas |
+| Librerías propias | Permitidas: drivers propios en `.c/.h` |
+| UI principal | LCD + teclado matricial 4x4 |
+| Código de administración | Constante compilada, digitada por teclado matricial |
+| Persistencia | EEPROM interna del ATmega2560 |
+| Comunicación de diagnóstico | UART/Serial hacia PC |
+| RFID | RC522 por SPI, con driver propio |
+| Alarmas | Intrusión por PIR y fuego/humo por MQ-2 |
+| Servicios remotos | Simulados/locales desde menú LCD + teclado |
 
-## Estructura segmentada
+## Alcance funcional
+
+### Seguridad
+
+- Alarma de acceso activable/desactivable mediante código.
+- Alarma de incendio activable/desactivable mediante código.
+- Detección de intrusión usando dos sensores PIR HC-SR501.
+- Detección de humo usando sensor MQ-2 por ADC.
+- Reporte obligatorio por serial ante eventos críticos.
+- Visualización de estados y alertas en LCD.
+
+### Accesos RFID
+
+- Lectura de tarjetas RFID mediante RC522.
+- Enrolamiento de tarjetas autorizadas.
+- Borrado lógico de tarjetas existentes.
+- Roles mínimos: padre/administrador e hijo.
+- Acceso por puerta principal simulado con LED.
+- Acceso por garaje mediante servomotor real.
+- Habitación de juegos con cupos por hijo.
+- Descuento de cupos después de cada ingreso.
+- Recarga de cupos por parte de padres/administradores.
+- Persistencia de usuarios y cupos en EEPROM.
+
+### Confort
+
+- Iluminación dimerizada mediante LED controlado por PWM.
+- Nivel de iluminación definido por potenciómetro.
+- Control de temperatura simulado desde teclado matricial.
+- Salidas de calefacción y ventilación representadas por LEDs o relé según disponibilidad.
+
+### Servicios
+
+- Horno configurable desde teclado: temperatura y tiempo.
+- Apagado automático del horno al terminar el tiempo programado.
+- Equipo de sonido configurable desde menú.
+- Volumen por potenciómetro, mostrado como porcentaje en LCD en tiempo real.
+- Salida PWM proporcional al volumen solicitado.
+- Lista de mercado consultable desde menú LCD.
+- Productos de mercado preferiblemente predefinidos, con cantidad configurable.
+
+## Hardware base
+
+| Elemento | Uso en el sistema | Tipo de implementación |
+|---|---|---|
+| ATmega2560 / Mega 2560 | Controlador principal | Físico |
+| RFID-RC522 | Identificación de usuarios | Físico |
+| 2x PIR HC-SR501 | Intrusión/presencia | Físico |
+| MQ-2 | Humo/incendio | Físico |
+| LCD | Interfaz de usuario | Físico |
+| Teclado matricial 4x4 | Navegación y captura de código/datos | Físico |
+| Servo | Garaje | Físico |
+| LED puerta | Imán/cerradura principal | Simulación |
+| LED iluminación | Dimmer | Simulación física por PWM |
+| LEDs/relé | Calefactor, ventilador, horno | Simulación |
+| Potenciómetro | Dimmer y volumen | Físico |
+| UART/USB | Reporte serial | Físico |
+
+## Estructura del repositorio
 
 ```txt
 src/
   app/
-    Proyecto_Domotica.ino    Orquestador principal vacío
+    Proyecto_Domotica.ino       Orquestador principal: setup/loop
 
   common/
-    Definiciones.h           Contratos compartidos, pines, macros y estructuras
+    Definiciones.h              Macros, constantes, tipos, mapa de pines
 
   seguridad/
-    Seguridad.h             Interfaz de alarmas y sensores
-    Seguridad.c             Implementación futura de seguridad
+    Seguridad.h                 Contrato del subsistema de alarmas
+    Seguridad.c                 Implementación de PIR, MQ-2 y estados de alarma
 
   accesos/
-    Accesos.h               Interfaz de RFID, garaje y cuarto de juegos
-    Accesos.c               Implementación futura de accesos
+    Accesos.h                   Contrato de RFID, usuarios, puerta, garaje y juegos
+    Accesos.c                   Implementación de accesos y persistencia lógica
 
   confort/
-    Confort.h               Interfaz de luz y climatización
-    Confort.c               Implementación futura de confort
+    Confort.h                   Contrato de iluminación, temperatura y sonido
+    Confort.c                   PWM, ADC, actuadores de confort
 
   remoto/
-    Remoto.h                Interfaz de comandos remotos
-    Remoto.c                Implementación futura de comandos remotos
+    Remoto.h                    Servicios: horno, mercado y operaciones tipo remoto
+    Remoto.c                    Gestión de servicios desde UI local
+
+docs/
+  00_ALCANCE_Y_DEMO.md          Alcance cerrado y guion de presentación
+  01_ARQUITECTURA.md            Máquina de estados, módulos y ciclo no bloqueante
+  02_HARDWARE_Y_PINOUT.md       Hardware, simulaciones y asignación preliminar de pines
+  03_INTERFAZ_LCD_TECLADO.md    Menús, navegación y pantallas LCD
+  04_EEPROM.md                  Modelo de datos persistente
+  05_PLAN_IMPLEMENTACION.md     Orden de trabajo y criterios de aceptación
+  REFERENCIAS.md                Fuentes técnicas base
 ```
 
-## Requisitos de implementación futura
+## Arquitectura recomendada
 
-- Microcontrolador objetivo: **ATmega2560 / Arduino Mega 2560**
-- Estilo obligatorio: **C puro**, modular y procedural
-- Salida de diagnóstico: **puerto serial**
-- Salida local al usuario: **LCD**
-- Sensores esperados: humo, puertas, ventanas, selector de ubicación
-- Actuadores esperados: alarma, imán de puerta principal, servomotor de garaje, calefactor, ventilador, iluminación PWM, salida analógica de sonido, horno remoto
+El firmware debe implementarse como una **máquina de estados centralizada**, con tareas cooperativas no bloqueantes. La función `loop()` no debe quedar atrapada esperando entradas en un menú, ni usando retardos largos para horno, servo, LCD o alarmas.
 
-## Estado actual
-
-```txt
-Scaffold vacío.
-Sin lógica compilable.
-Sin implementación funcional.
-Sin documentación duplicada.
-```
-
-## Segmentos y funcionalidad esperada
-
-### `src/app/`
-
-**Rol:** punto de entrada del firmware.
-
-**Archivo:**
-
-- `Proyecto_Domotica.ino`
-
-**Responsabilidad esperada en enfoque C puro:**
-
-- Ejecutar `setup()` y `loop()` como coordinador mínimo.
-- Invocar rutinas de inicialización de todos los módulos.
-- Ejecutar ciclo principal sin bloquear.
-- Coordinar refresco de LCD, lectura de sensores, comandos seriales y lectura RFID.
-
-**Contrato esperado:**
-
-```c
-void setup(void);
-void loop(void);
-```
-
-**Estado actual:** vacío.
-
----
-
-### `src/common/`
-
-**Rol:** concentrar contratos globales de bajo nivel.
-
-**Archivo:**
-
-- `Definiciones.h`
-
-**Responsabilidad esperada en enfoque C puro:**
-
-- Definir macros de pines.
-- Definir constantes de umbral.
-- Declarar estructuras de datos compartidas.
-- Declarar variables globales controladas por módulos.
-
-**Contrato esperado:**
-
-```c
-#define PIN_VENTANA1       ...
-#define PIN_VENTANA2       ...
-#define PIN_PUERTA         ...
-#define PIN_HUMO           ...
-#define PIN_SERVO          ...
-#define PIN_TEMP_POT       ...
-#define PIN_LUZ_POT        ...
-
-typedef struct {
-    char uid[UID_MAX];
-    char nombre[NOMBRE_MAX];
-    unsigned char tipo;
-    int accesos_juegos;
-} Usuario;
-```
-
-**Estado actual:** vacío.
-
----
-
-### `src/seguridad/`
-
-**Rol:** manejar alarmas de acceso e incendio.
-
-**Archivos:**
-
-- `Seguridad.h`
-- `Seguridad.c`
-
-**Funcionalidad esperada:**
-
-- Leer sensores de puertas y ventanas.
-- Leer sensores de humo.
-- Distinguir alarma de acceso vs alarma de incendio.
-- Activar y desactivar alarmas solo con código válido.
-- Reportar eventos críticos por puerto serial.
-- Mantener estado seguro/inseguro del sistema.
-
-**Interfaz esperada:**
-
-```c
-void seguridad_inicializar(void);
-void seguridad_verificar_alarmas(void);
-void seguridad_activar(unsigned int codigo);
-void seguridad_desactivar(unsigned int codigo);
-void seguridad_reportar_evento(const char *tipo);
-```
-
-**Estado actual:** vacío.
-
----
-
-### `src/accesos/`
-
-**Rol:** controlar autenticación RFID y acceso físico.
-
-**Archivos:**
-
-- `Accesos.h`
-- `Accesos.c`
-
-**Funcionalidad esperada:**
-
-- Autorizar entrada por puerta principal y garaje.
-- Permitir enrolamiento de nuevas tarjetas RFID.
-- Permitir borrado de tarjetas existentes.
-- Registrar padres e hijos con permisos distintos.
-- Programar y descontar accesos a la habitación de juegos.
-- Permitir a padres recargar accesos para hijos.
-- Operar imán de puerta principal y servomotor de garaje.
-
-**Interfaz esperada:**
-
-```c
-void accesos_inicializar(void);
-unsigned char accesos_leer_selector_ubicacion(void);
-void accesos_procesar_rfid(unsigned char ubicacion);
-void accesos_enrolar_usuario(const Usuario *usuario);
-void accesos_borrar_usuario(const char *uid);
-void accesos_recargar_juegos(const char *uid, int cantidad);
-```
-
-**Estado actual:** vacío.
-
----
-
-### `src/confort/`
-
-**Rol:** controlar ambiente interior.
-
-**Archivos:**
-
-- `Confort.h`
-- `Confort.c`
-
-**Funcionalidad esperada:**
-
-- Leer referencia de temperatura.
-- Activar calefactor si temperatura cae por debajo del umbral.
-- Activar ventilador si temperatura supera el umbral.
-- Realizar control dimerizado de iluminación.
-- Exponer estado actual al LCD.
-
-**Interfaz esperada:**
-
-```c
-void confort_inicializar(void);
-void confort_actualizar_clima(void);
-void confort_actualizar_iluminacion(void);
-int confort_obtener_temperatura(void);
-unsigned char confort_obtener_nivel_luz(void);
-```
-
-**Estado actual:** vacío.
-
----
-
-### `src/remoto/`
-
-**Rol:** procesar comandos remotos y servicios secundarios.
-
-**Archivos:**
-
-- `Remoto.h`
-- `Remoto.c`
-
-**Funcionalidad esperada:**
-
-- Encender horno con tiempo y temperatura configurables.
-- Encender equipo de sonido con volumen proporcional.
-- Mantener lista de mercado remota.
-- Permitir consulta remota de lista de mercado.
-- Publicar respuestas y errores por serial.
-
-**Interfaz esperada:**
-
-```c
-void remoto_inicializar(void);
-void remoto_escuchar_serial(void);
-void remoto_procesar_horno(const char *comando);
-void remoto_procesar_sonido(const char *comando);
-void remoto_gestionar_mercado(const char *comando);
-```
-
-**Estado actual:** vacío.
-
----
-
-## Flujo funcional esperado
+Flujo mínimo esperado:
 
 ```txt
 setup()
-  -> seguridad_inicializar()
-  -> accesos_inicializar()
-  -> confort_inicializar()
-  -> remoto_inicializar()
+  -> drivers_init()
+  -> seguridad_init()
+  -> accesos_init()
+  -> confort_init()
+  -> servicios_init()
+  -> ui_init()
 
 loop()
-  -> seguridad_verificar_alarmas()
-  -> remoto_escuchar_serial()
-  -> accesos_procesar_rfid(ubicacion)
-  -> confort_actualizar_clima()
-  -> confort_actualizar_iluminacion()
-  -> lcd_actualizar_estado()
+  -> tick_actualizar()
+  -> keypad_scan()
+  -> rfid_task()
+  -> seguridad_task()
+  -> confort_task()
+  -> servicios_task()
+  -> ui_task()
+  -> serial_task()
 ```
 
-## Mapa de responsabilidades
+La regla es simple: **ningún módulo debe bloquear al resto**. Si el horno está encendido por 5 minutos, el sistema debe seguir leyendo RFID, PIR, MQ-2, teclado y actualizando LCD.
 
-| Segmento | Responsabilidad principal | Entradas | Salidas |
-|----------|---------------------------|----------|---------|
-| `app` | Orquestación | todos los módulos | ciclo principal |
-| `common` | Contratos comunes | requisitos del hardware | macros, structs, estado |
-| `seguridad` | Alarmas y sensores | humo, puertas, ventanas, código | serial, alarma sonora |
-| `accesos` | RFID y control físico | tarjetas, selector, permisos | imán, servo, saldo |
-| `confort` | Ambiente | temperatura, nivel de luz | calefactor, ventilador, PWM |
-| `remoto` | Servicios remotos | comandos seriales | horno, sonido, mercado |
+## Interfaz de usuario
 
-## Siguiente implementación recomendada
+La navegación se realiza con teclado matricial:
 
-1. Restaurar contratos mínimos en `Definiciones.h`.
-2. Definir prototipos C reales en cada `.h`.
-3. Implementar primero `seguridad` y `confort`.
-4. Implementar luego `accesos` con persistencia en memoria estática.
-5. Implementar finalmente `remoto` y salida a LCD.
+| Tecla | Uso recomendado |
+|---|---|
+| `A` | Seguridad |
+| `B` | Accesos RFID |
+| `C` | Ambiente/confort |
+| `D` | Servicios |
+| `#` | Confirmar |
+| `*` | Volver/cancelar |
+| `0-9` | Datos numéricos |
 
-## Documentación
+Pantalla principal propuesta:
 
-Este `README.md` reemplaza documentación anterior. No quedan documentos funcionales paralelos en raíz.
+```txt
+A Seg B RFID
+C Amb D Serv
+```
+
+## Demo mínima obligatoria
+
+La presentación debe ejecutarse como una secuencia integrada:
+
+1. Iniciar sistema y entrar al menú con código.
+2. Activar alarma de acceso, disparar PIR y ver alerta en LCD + serial.
+3. Activar alarma de incendio, disparar MQ-2 y ver alerta en LCD + serial.
+4. Leer tarjeta RFID autorizada y simular apertura de puerta con LED.
+5. Leer tarjeta autorizada y abrir garaje con servo.
+6. Leer tarjeta de hijo, ingresar a sala de juegos y descontar cupo.
+7. Reiniciar y demostrar que los cupos persisten en EEPROM.
+8. Controlar iluminación con potenciómetro y PWM.
+9. Configurar horno por teclado y ver cuenta regresiva no bloqueante.
+10. Encender sonido, variar volumen por potenciómetro y ver porcentaje en LCD.
+11. Agregar/consultar productos de mercado.
+
+## Reglas de implementación
+
+- No usar librerías externas como `MFRC522`, `LiquidCrystal`, `Servo`, `Keypad`, `EEPROM` o `SPI`.
+- Sí se permiten módulos propios: `spi.c`, `uart.c`, `lcd.c`, `keypad.c`, `adc.c`, `pwm.c`, `timer.c`, `eeprom.c`, `rfid_rc522.c`.
+- Evitar `delay()` en cualquier lógica funcional.
+- Usar `uint8_t`, `uint16_t`, `uint32_t` y tipos explícitos.
+- Mantener el `.ino` como orquestador mínimo si se compila con Arduino IDE.
+- Aislar el acceso a registros en drivers propios.
+- Reportar por serial todo evento relevante de seguridad, acceso, horno y errores.
+- Mantener los datos persistentes en EEPROM con cabecera de validez.
+
+## Documentación rápida
+
+- [Alcance y demo](docs/00_ALCANCE_Y_DEMO.md)
+- [Arquitectura](docs/01_ARQUITECTURA.md)
+- [Hardware y pinout](docs/02_HARDWARE_Y_PINOUT.md)
+- [Interfaz LCD/teclado](docs/03_INTERFAZ_LCD_TECLADO.md)
+- [EEPROM](docs/04_EEPROM.md)
+- [Plan de implementación](docs/05_PLAN_IMPLEMENTACION.md)
+- [Referencias](docs/REFERENCIAS.md)
