@@ -113,6 +113,29 @@ public:
 };
 ```
 
+## Enlace C/C++ (`extern "C"`)
+
+El entorno Arduino compila los archivos `.ino` como C++ y los archivos `.c` como C. Esto causa que los nombres de función tengan representación interna distinta (mangling), generando errores de `undefined reference` en el enlazador.
+
+Para evitarlo, todo archivo `.h` de módulo debe envolver sus prototipos con el bloque `extern "C"` condicional:
+
+```c
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void Modulo_Init(void);
+void Modulo_Task(uint32_t now_ms);
+
+#ifdef __cplusplus
+}
+#endif
+```
+
+Esto garantiza que el compilador C++ del `.ino` busque símbolos con linkage C, que son los que generan los archivos `.c`.
+
+Esta regla aplica a todos los `.h` bajo `src/*/`. No aplica a `Definiciones.h` porque solo contiene macros, tipos y constantes, nunca funciones.
+
 ## Librerías externas prohibidas
 
 No se permite usar librerías externas ni abstracciones de Arduino para los periféricos principales.

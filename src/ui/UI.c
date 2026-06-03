@@ -1,9 +1,13 @@
 #include "UI.h"
+#include "lcd.h"
 
 void ui_init(void) {
-    // TODO: inicializar LCD, mostrar pantalla de login
+    lcd_init();
+    lcd_write_two_lines("A Seg B RFID",
+                        "C Amb D Serv");
 }
 
 void ui_task(void) {
-    // TODO: escanear teclado, navegar menús, actualizar LCD
+    /* Keypad + menu navigation in future issue */
+    /* LCD driver does not require periodic refresh */
 }
