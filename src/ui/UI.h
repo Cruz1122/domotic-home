@@ -1,5 +1,5 @@
-#ifndef REMOTO_H
-#define REMOTO_H
+#ifndef UI_H
+#define UI_H
 
 #include "../common/Definiciones.h"
 
@@ -7,11 +7,11 @@
 extern "C" {
 #endif
 
-void remoto_init(void);
-void remoto_task(void);
+void ui_init(void);
+void ui_task(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* REMOTO_H */
+#endif /* UI_H */

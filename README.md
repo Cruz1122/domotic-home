@@ -106,10 +106,9 @@ El alcance fue cerrado para evitar vender una casa domótica ficticia: varios ac
 ## Estructura del repositorio
 
 ```txt
-src/
-  app/
-    Proyecto_Domotica.ino       Orquestador principal: setup/loop
+domotic-home.ino                Orquestador principal: setup/loop
 
+src/
   common/
     Definiciones.h              Macros, constantes, tipos, mapa de pines
 
@@ -129,6 +128,10 @@ src/
     Remoto.h                    Servicios: horno, mercado y operaciones tipo remoto
     Remoto.c                    Gestión de servicios desde UI local
 
+  ui/
+    UI.h                        Contrato de interfaz LCD/teclado
+    UI.c                        Menús, navegación y captura de teclado
+
 docs/
   00_ALCANCE_Y_DEMO.md          Alcance cerrado y guion de presentación
   01_ARQUITECTURA.md            Máquina de estados, módulos y ciclo no bloqueante
@@ -147,22 +150,18 @@ Flujo mínimo esperado:
 
 ```txt
 setup()
-  -> drivers_init()
   -> seguridad_init()
   -> accesos_init()
   -> confort_init()
-  -> servicios_init()
+  -> remoto_init()
   -> ui_init()
 
 loop()
-  -> tick_actualizar()
-  -> keypad_scan()
-  -> rfid_task()
   -> seguridad_task()
+  -> accesos_task()
   -> confort_task()
-  -> servicios_task()
+  -> remoto_task()
   -> ui_task()
-  -> serial_task()
 ```
 
 La regla es simple: **ningún módulo debe bloquear al resto**. Si el horno está encendido por 5 minutos, el sistema debe seguir leyendo RFID, PIR, MQ-2, teclado y actualizando LCD.
