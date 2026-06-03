@@ -22,14 +22,15 @@
 #define PIN_LCD_D7                27
 
 /* --- Teclado matricial 4x4 --- */
-#define PIN_KEYPAD_R1             30
-#define PIN_KEYPAD_R2             31
-#define PIN_KEYPAD_R3             32
-#define PIN_KEYPAD_R4             33
-#define PIN_KEYPAD_C1             34
-#define PIN_KEYPAD_C2             35
-#define PIN_KEYPAD_C3             36
-#define PIN_KEYPAD_C4             37
+/* Filas D34-D37 (PORTL PL0-PL3), Columnas A8-A11 (PORTK PK0-PK3) */
+#define PIN_KEYPAD_R1             34
+#define PIN_KEYPAD_R2             35
+#define PIN_KEYPAD_R3             36
+#define PIN_KEYPAD_R4             37
+#define PIN_KEYPAD_C1             62   /* A8 / PK0 */
+#define PIN_KEYPAD_C2             63   /* A9 / PK1 */
+#define PIN_KEYPAD_C3             64   /* A10 / PK2 */
+#define PIN_KEYPAD_C4             65   /* A11 / PK3 */
 
 /* --- Sensores --- */
 #define PIN_PIR_1                 38

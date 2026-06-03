@@ -62,16 +62,16 @@ Este pinout es una propuesta inicial. Debe validarse contra la placa física, el
 
 ### Teclado matricial 4x4
 
-| Línea | Pin sugerido |
-|---|---:|
-| Fila 1 | D30 |
-| Fila 2 | D31 |
-| Fila 3 | D32 |
-| Fila 4 | D33 |
-| Columna 1 | D34 |
-| Columna 2 | D35 |
-| Columna 3 | D36 |
-| Columna 4 | D37 |
+| Línea | Pin sugerido | Puerto | PCINT |
+|---:|---:|---:|---:|
+| Fila 1 | D34 | PL0 | — |
+| Fila 2 | D35 | PL1 | — |
+| Fila 3 | D36 | PL2 | — |
+| Fila 4 | D37 | PL3 | — |
+| Columna 1 | A8 / D62 | PK0 | PCINT16 |
+| Columna 2 | A9 / D63 | PK1 | PCINT17 |
+| Columna 3 | A10 / D64 | PK2 | PCINT18 |
+| Columna 4 | A11 / D65 | PK3 | PCINT19 |
 
 ### Sensores y actuadores
 
@@ -113,14 +113,14 @@ Este pinout es una propuesta inicial. Debe validarse contra la placa física, el
 #define PIN_LCD_D6               26
 #define PIN_LCD_D7               27
 
-#define PIN_KEYPAD_R1            30
-#define PIN_KEYPAD_R2            31
-#define PIN_KEYPAD_R3            32
-#define PIN_KEYPAD_R4            33
-#define PIN_KEYPAD_C1            34
-#define PIN_KEYPAD_C2            35
-#define PIN_KEYPAD_C3            36
-#define PIN_KEYPAD_C4            37
+#define PIN_KEYPAD_R1            34   /* PL0 */
+#define PIN_KEYPAD_R2            35   /* PL1 */
+#define PIN_KEYPAD_R3            36   /* PL2 */
+#define PIN_KEYPAD_R4            37   /* PL3 */
+#define PIN_KEYPAD_C1            62   /* PK0 / A8 */
+#define PIN_KEYPAD_C2            63   /* PK1 / A9 */
+#define PIN_KEYPAD_C3            64   /* PK2 / A10 */
+#define PIN_KEYPAD_C4            65   /* PK3 / A11 */
 
 #define PIN_PIR_1                38
 #define PIN_PIR_2                39
