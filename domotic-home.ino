@@ -19,15 +19,18 @@
 #include "src/accesos/Accesos.h"
 #include "src/confort/Confort.h"
 #include "src/remoto/Remoto.h"
+#include "src/eeprom/eeprom.h"
 #include "src/ui/UI.h"
 
 static uint32_t hb_tick = 0;
+static uint8_t  eeprom_checked = 0;
 
 void setup(void) {
     UART_Init(9600);
     UART_WriteEvent(SER_BOOT, "Sistema iniciado");
     GPIO_Init();
     Timer_Init();
+    EEPROM_Init();
 
     keypad_init();
     seguridad_init();
@@ -43,6 +46,22 @@ void loop(void) {
     Timer_Task();
     uint32_t now_ms = Timer_GetMs();
     char tecla;
+
+    if (!eeprom_checked) {
+        eeprom_checked = 1;
+        user_record_t u;
+        if (EEPROM_LoadUser(0, &u)) {
+            UART_WriteEvent(SER_EEPROM, "User 0 persistido OK");
+        } else {
+            u.active = 1;
+            u.uid[0] = 0x01; u.uid[1] = 0x02; u.uid[2] = 0x03;
+            u.uid[3] = 0x04; u.uid[4] = 0x05;
+            u.type = USER_CHILD;
+            u.game_credits = 10;
+            EEPROM_SaveUser(0, &u);
+            UART_WriteEvent(SER_EEPROM, "User 0 escrito (prueba)");
+        }
+    }
 
     if (Timer_Expired(hb_tick, 5000)) {
         hb_tick = now_ms;
