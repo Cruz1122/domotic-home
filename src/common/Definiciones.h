@@ -156,5 +156,7 @@ typedef struct {
 #define SER_SONIDO  "[SONIDO] "
 #define SER_MERCADO "[MERCADO] "
 #define SER_EEPROM  "[EEPROM] "
+#define SER_SISTEMA "[SISTEMA] "
+#define SER_TECLADO "[TECLADO] "
 
 #endif /* DEFINICIONES_H */

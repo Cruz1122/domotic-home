@@ -11,6 +11,9 @@
 
 #include <Arduino.h>
 #include "src/common/Definiciones.h"
+#include "src/timer/timer.h"
+#include "src/gpio/gpio.h"
+#include "src/uart/uart.h"
 #include "src/keypad/keypad.h"
 #include "src/seguridad/Seguridad.h"
 #include "src/accesos/Accesos.h"
@@ -18,9 +21,13 @@
 #include "src/remoto/Remoto.h"
 #include "src/ui/UI.h"
 
+static uint32_t hb_tick = 0;
+
 void setup(void) {
-    Serial.begin(9600);
-    Serial.println("[BOOT] Sistema iniciado");
+    UART_Init(9600);
+    UART_WriteEvent(SER_BOOT, "Sistema iniciado");
+    GPIO_Init();
+    Timer_Init();
 
     keypad_init();
     seguridad_init();
@@ -29,12 +36,18 @@ void setup(void) {
     remoto_init();
     ui_init();
 
-    Serial.println("[BOOT] Keypad listo — presione teclas para probar");
+    UART_WriteEvent(SER_BOOT, "Keypad listo — presione teclas para probar");
 }
 
 void loop(void) {
-    uint32_t now_ms = millis();
+    Timer_Task();
+    uint32_t now_ms = Timer_GetMs();
     char tecla;
+
+    if (Timer_Expired(hb_tick, 5000)) {
+        hb_tick = now_ms;
+        UART_WriteEvent(SER_SISTEMA, "Heartbeat OK");
+    }
 
     keypad_scan(now_ms);
     seguridad_task();
@@ -45,7 +58,8 @@ void loop(void) {
 
     tecla = keypad_get_key();
     if (tecla != '\0') {
-        Serial.print("[TECLADO] Tecla: ");
-        Serial.println(tecla);
+        UART_WriteString(SER_TECLADO "Tecla: ");
+        UART_WriteChar(tecla);
+        UART_Newline();
     }
 }
