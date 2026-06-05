@@ -15,6 +15,9 @@ void UART_WriteChar(char c);
 void UART_Newline(void);
 void UART_WriteEvent(const char *tag, const char *msg);
 
+uint8_t UART_Available(void);
+char    UART_ReadChar(void);
+
 #ifdef __cplusplus
 }
 #endif

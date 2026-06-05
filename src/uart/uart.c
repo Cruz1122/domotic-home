@@ -3,20 +3,27 @@
 #include <avr/interrupt.h>
 
 #define TX_BUF_SIZE 128
+#define RX_BUF_SIZE 32
 
 static volatile uint8_t tx_buffer[TX_BUF_SIZE];
 static volatile uint8_t tx_head;
 static volatile uint8_t tx_tail;
 
+static volatile uint8_t rx_buffer[RX_BUF_SIZE];
+static volatile uint8_t rx_head;
+static volatile uint8_t rx_tail;
+
 void UART_Init(uint32_t baud) {
     uint16_t ubrr = (uint16_t)(F_CPU / 16 / baud - 1);
     UBRR0H = (uint8_t)(ubrr >> 8);
     UBRR0L = (uint8_t)(ubrr);
-    UCSR0B = (1 << TXEN0);
+    UCSR0B = (1 << TXEN0) | (1 << RXEN0) | (1 << RXCIE0);
     UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
     sei();
     tx_head = 0;
     tx_tail = 0;
+    rx_head = 0;
+    rx_tail = 0;
 }
 
 void UART_Task(void) {
@@ -61,6 +68,29 @@ void UART_WriteEvent(const char *tag, const char *msg) {
     UART_WriteString(tag);
     UART_WriteString(msg);
     UART_Newline();
+}
+
+uint8_t UART_Available(void) {
+    uint8_t h = rx_head;
+    uint8_t t = rx_tail;
+    if (h >= t) return h - t;
+    return (RX_BUF_SIZE - t) + h;
+}
+
+char UART_ReadChar(void) {
+    if (rx_head == rx_tail) return '\0';
+    char c = (char)rx_buffer[rx_tail];
+    rx_tail = (uint8_t)(rx_tail + 1) % RX_BUF_SIZE;
+    return c;
+}
+
+ISR(USART0_RX_vect) {
+    uint8_t data = UDR0;
+    uint8_t next = (uint8_t)(rx_head + 1) % RX_BUF_SIZE;
+    if (next != rx_tail) {
+        rx_buffer[rx_head] = data;
+        rx_head = next;
+    }
 }
 
 ISR(USART0_UDRE_vect) {

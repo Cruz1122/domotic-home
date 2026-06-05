@@ -1,45 +1,26 @@
 #include "rfid_rc522.h"
-#include "../spi/spi.h"
-#include "../gpio/gpio.h"
-#include "../timer/timer.h"
-#include <avr/io.h>
 
 /* ============================================================
- *  LIMITACIONES DEL DRIVER INICIAL (v1)
+ *  NOTA SOBRE RFID_SIMULATED
  *
- *  1. rc522_wait_ms() usa busy-wait — solo se invoca durante
- *     RFID_Init(), no impacta el loop principal.
- *
- *  2. SPI sin prescaler explícito — SPCR usa reset default
- *     (F_CPU/4 ~ 4 MHz), no se ajusta a la frecuencia real
- *     del módulo RC522 conectado.
- *
- *  3. Solo UID de 4 bytes (5 con BCC). No soporta UID de
- *     7 bytes (requiere SAK + segunda ronda de anticollision).
- *
- *  4. Solo ISO/IEC 14443 A (MIFARE Classic / Ultralight).
- *     No soporta otros tipos PICC.
- *
- *  5. Sin validación CRC de los datos de anticollision.
- *
- *  6. Detecta solo una tarjeta a la vez. Sin manejo de
- *     colisiones entre múltiples tarjetas en campo.
- *
- *  7. No lee el byte SAK tras el comando SELECT, por lo que
- *     no identifica el tipo de tarjeta ni el tamaño de UID.
- *
- *  8. No envía HLTA (0x50 0x00) después de leer el UID.
- *     La tarjeta queda activa consumiendo energía.
- *
- *  9. Sin control de errores avanzado — solo verifica los
- *     bits de error básicos del registro ErrorReg.
- *
- *  10. No reconfigura registros de temporización ni potencia
- *      del campo RF (usa valores fijos de fábrica).
- *
- *  Estas limitaciones son aceptables para la demo inicial.
- *  Una versión robusta debe resolver al menos 3, 7 y 8.
+ *  Si se define RFID_SIMULATED (en Definiciones.h), este driver
+ *  no usa SPI/RC522 real. Lee UIDs desde UART (Virtual Terminal
+ *  en Proteus). Formato: "01 02 03 04 05\n" (5 bytes hex + Enter).
  * ============================================================ */
+
+static uint8_t  rf_state;
+static uint32_t rf_tick;
+static uint32_t rf_poll_tick;
+static uint8_t  rf_uid[RFID_UID_LEN];
+static uint8_t  rf_uid_len;
+static uint8_t  rf_uid_ready;
+
+#ifndef RFID_SIMULATED
+
+/* --- Driver real RC522 por SPI --- */
+
+#include "../spi/spi.h"
+#include "../gpio/gpio.h"
 
 #define RC522_REG_COMMAND      0x01
 #define RC522_REG_COMIEN       0x02
@@ -73,13 +54,6 @@
 #define RC522_STATE_SEL_WAIT   5
 #define RC522_STATE_UID_READY  6
 #define RC522_STATE_COOLDOWN   7
-
-static uint8_t  rf_state;
-static uint32_t rf_tick;
-static uint32_t rf_poll_tick;
-static uint8_t  rf_uid[RFID_UID_LEN];
-static uint8_t  rf_uid_len;
-static uint8_t  rf_uid_ready;
 
 static void rc522_wait_ms(uint16_t ms) {
     volatile uint32_t n;
@@ -290,6 +264,69 @@ void RFID_Task(uint32_t now_ms) {
     }
 }
 
+#else /* RFID_SIMULATED */
+
+/* --- Simulación: lee UIDs desde UART (Virtual Terminal) --- */
+
+#include "../uart/uart.h"
+
+#define SIM_RX_IDLE      0
+#define SIM_RX_NIBBLE_HI 1
+#define SIM_RX_NIBBLE_LO 2
+
+static uint8_t sim_state;
+static uint8_t sim_uid[RFID_UID_LEN];
+static uint8_t sim_uid_count;
+static uint8_t sim_nibble;
+
+static uint8_t sim_hex_val(char c) {
+    if (c >= '0' && c <= '9') return (uint8_t)(c - '0');
+    if (c >= 'A' && c <= 'F') return (uint8_t)(c - 'A' + 10);
+    if (c >= 'a' && c <= 'f') return (uint8_t)(c - 'a' + 10);
+    return 0xFF;
+}
+
+void RFID_Init(void) {
+    sim_state = SIM_RX_IDLE;
+    sim_uid_count = 0;
+    rf_uid_len = RFID_UID_LEN;
+    rf_uid_ready = 0;
+}
+
+void RFID_Task(uint32_t now_ms) {
+    (void)now_ms;
+    if (rf_uid_ready) return;
+
+    while (UART_Available()) {
+        char c = UART_ReadChar();
+        uint8_t hv = sim_hex_val(c);
+
+        if (hv != 0xFF) {
+            if (sim_state == SIM_RX_IDLE || sim_state == SIM_RX_NIBBLE_LO) {
+                sim_nibble = hv;
+                sim_state = SIM_RX_NIBBLE_HI;
+            } else {
+                if (sim_uid_count < RFID_UID_LEN) {
+                    sim_uid[sim_uid_count] = (sim_nibble << 4) | hv;
+                    sim_uid_count++;
+                }
+                sim_state = SIM_RX_NIBBLE_LO;
+            }
+        } else if (c == '\n' || c == '\r') {
+            if (sim_uid_count >= RFID_UID_LEN) {
+                for (uint8_t i = 0; i < RFID_UID_LEN; i++) {
+                    rf_uid[i] = sim_uid[i];
+                }
+                rf_uid_ready = 1;
+            }
+            sim_uid_count = 0;
+            sim_state = SIM_RX_IDLE;
+        }
+    }
+}
+
+#endif /* RFID_SIMULATED */
+
 uint8_t RFID_UIDAvailable(void) {
     return rf_uid_ready;
 }
@@ -300,6 +337,11 @@ uint8_t RFID_ReadUID(uint8_t *uid_out) {
         uid_out[i] = rf_uid[i];
     }
     rf_uid_ready = 0;
+#ifdef RFID_SIMULATED
+    sim_state = SIM_RX_IDLE;
+    sim_uid_count = 0;
+#else
     rf_state = RC522_STATE_IDLE;
+#endif
     return 1;
 }

@@ -58,6 +58,8 @@
  *  CONSTANTES DEL SISTEMA
  * ============================================================ */
 
+#define RFID_SIMULATED   1       /* Simula RFID por UART (Virtual Terminal) */
+
 #define CODIGO_ADMIN            "1234"
 #define CODE_LEN                   4
 

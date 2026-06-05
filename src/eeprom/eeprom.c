@@ -10,7 +10,7 @@ static uint8_t eeprom_calc_checksum(const eeprom_header_t *h) {
 }
 
 uint8_t EEPROM_ReadByte(uint16_t addr) {
-    while (EECR & (1 << EEWE));
+    while (EECR & (1 << EEPE));
     EEARH = (uint8_t)(addr >> 8);
     EEARL = (uint8_t)(addr);
     EECR |= (1 << EERE);
@@ -18,14 +18,14 @@ uint8_t EEPROM_ReadByte(uint16_t addr) {
 }
 
 void EEPROM_WriteByte(uint16_t addr, uint8_t data) {
-    while (EECR & (1 << EEWE));
+    while (EECR & (1 << EEPE));
     EEARH = (uint8_t)(addr >> 8);
     EEARL = (uint8_t)(addr);
     EEDR = data;
     uint8_t sreg = SREG;
     cli();
-    EECR |= (1 << EEMWE);
-    EECR |= (1 << EEWE);
+    EECR |= (1 << EEMPE);
+    EECR |= (1 << EEPE);
     SREG = sreg;
 }
 
