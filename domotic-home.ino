@@ -20,6 +20,7 @@
 #include "src/confort/Confort.h"
 #include "src/remoto/Remoto.h"
 #include "src/eeprom/eeprom.h"
+#include "src/rfid_rc522/rfid_rc522.h"
 #include "src/ui/UI.h"
 
 static uint32_t hb_tick = 0;
@@ -32,6 +33,7 @@ void setup(void) {
     Timer_Init();
     EEPROM_Init();
 
+    RFID_Init();
     keypad_init();
     seguridad_init();
     accesos_init();
@@ -68,12 +70,24 @@ void loop(void) {
         UART_WriteEvent(SER_SISTEMA, "Heartbeat OK");
     }
 
+    RFID_Task(now_ms);
     keypad_scan(now_ms);
     seguridad_task();
     accesos_task();
     confort_task();
     remoto_task();
     ui_task();
+
+    if (RFID_UIDAvailable()) {
+        uint8_t uid[RFID_UID_LEN];
+        RFID_ReadUID(uid);
+        UART_WriteString(SER_RFID "UID: ");
+        for (uint8_t i = 0; i < RFID_UID_LEN; i++) {
+            UART_WriteDecimal(uid[i]);
+            if (i < RFID_UID_LEN - 1) UART_WriteChar(' ');
+        }
+        UART_Newline();
+    }
 
     tecla = keypad_get_key();
     if (tecla != '\0') {
