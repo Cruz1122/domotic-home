@@ -11,7 +11,6 @@
 
 #include <Arduino.h>
 #include "src/common/Definiciones.h"
-#include "src/keypad/keypad.h"
 #include "src/seguridad/Seguridad.h"
 #include "src/accesos/Accesos.h"
 #include "src/confort/Confort.h"
@@ -22,30 +21,29 @@ void setup(void) {
     Serial.begin(9600);
     Serial.println("[BOOT] Sistema iniciado");
 
-    keypad_init();
     seguridad_init();
     accesos_init();
     confort_init();
     remoto_init();
     ui_init();
 
-    Serial.println("[BOOT] Keypad listo — presione teclas para probar");
+    Serial.println("[BOOT] LCD OK si ves cursor");
+    Serial.println("[BOOT] Teclado: PORTC filas, PORTK cols");
 }
 
 void loop(void) {
     uint32_t now_ms = millis();
-    char tecla;
+    static char last_key;
 
-    keypad_scan(now_ms);
     seguridad_task();
     accesos_task();
     confort_task();
     remoto_task();
-    ui_task();
+    ui_task(now_ms);
 
-    tecla = keypad_get_key();
-    if (tecla != '\0') {
-        Serial.print("[TECLADO] Tecla: ");
-        Serial.println(tecla);
+    /* Debug serial: si imprime aqui, teclado OK y falla LCD */
+    if (ui_last_key(&last_key)) {
+        Serial.print("[TECLADO] ");
+        Serial.println(last_key);
     }
 }
