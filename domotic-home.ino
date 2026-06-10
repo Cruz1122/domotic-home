@@ -15,6 +15,9 @@
 #include "src/gpio/gpio.h"
 #include "src/uart/uart.h"
 #include "src/keypad/keypad.h"
+#include "src/adc/adc.h"
+#include "src/pwm/pwm.h"
+#include "src/servo/servo.h"
 #include "src/seguridad/Seguridad.h"
 #include "src/accesos/Accesos.h"
 #include "src/confort/Confort.h"
@@ -25,11 +28,16 @@
 
 static uint32_t hb_tick = 0;
 static uint8_t  eeprom_checked = 0;
+static uint32_t servo_test_tick = 0;
+static uint8_t  servo_open = 0;
 
 void setup(void) {
     UART_Init(9600);
     UART_WriteEvent(SER_BOOT, "Sistema iniciado");
     GPIO_Init();
+    ADC_Init();
+    PWM_Init();
+    Servo_Init();
     Timer_Init();
     EEPROM_Init();
 
@@ -41,7 +49,7 @@ void setup(void) {
     remoto_init();
     ui_init();
 
-    UART_WriteEvent(SER_BOOT, "Keypad listo — presione teclas para probar");
+    UART_WriteEvent(SER_BOOT, "Confort — dimmer volumen temperatura OK");
 }
 
 void loop(void) {
@@ -68,6 +76,18 @@ void loop(void) {
     if (Timer_Expired(hb_tick, 5000)) {
         hb_tick = now_ms;
         UART_WriteEvent(SER_SISTEMA, "Heartbeat OK");
+    }
+
+    if (Timer_Expired(servo_test_tick, 3000)) {
+        servo_test_tick = now_ms;
+        if (servo_open) {
+            Servo_Close();
+            UART_WriteEvent(SER_SISTEMA, "Servo: CLOSE");
+        } else {
+            Servo_Open();
+            UART_WriteEvent(SER_SISTEMA, "Servo: OPEN");
+        }
+        servo_open = !servo_open;
     }
 
     RFID_Task(now_ms);
