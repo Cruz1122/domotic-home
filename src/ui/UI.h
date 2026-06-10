@@ -8,7 +8,8 @@ extern "C" {
 #endif
 
 void ui_init(void);
-void ui_task(void);
+void ui_task(uint32_t now_ms);
+uint8_t ui_last_key(char *key);
 
 #ifdef __cplusplus
 }

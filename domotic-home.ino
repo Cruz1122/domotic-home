@@ -96,7 +96,7 @@ void loop(void) {
     accesos_task();
     confort_task();
     remoto_task();
-    ui_task();
+    ui_task(now_ms);
 
     if (RFID_UIDAvailable()) {
         uint8_t uid[RFID_UID_LEN];
