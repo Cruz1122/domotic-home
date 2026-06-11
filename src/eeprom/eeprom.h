@@ -10,7 +10,7 @@ extern "C" {
 
 #define EEPROM_HEADER_ADDR      0x000
 #define EEPROM_USERS_ADDR       0x010
-#define EEPROM_USER_SIZE        16
+#define EEPROM_USER_SIZE        ((uint8_t)sizeof(user_record_t))
 #define EEPROM_TOTAL_SIZE       0x1000
 
 void     EEPROM_Init(void);
