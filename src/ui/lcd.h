@@ -7,12 +7,12 @@
 extern "C" {
 #endif
 
-void lcd_init(void);
-void lcd_clear(void);
-void lcd_set_cursor(uint8_t col, uint8_t row);
-void lcd_write_char(char c);
-void lcd_write_string(const char *str);
-void lcd_write_two_lines(const char *line1, const char *line2);
+void LCD_Init(void);
+void LCD_Clear(void);
+void LCD_SetCursor(uint8_t col, uint8_t row);
+void LCD_WriteChar(char c);
+void LCD_WriteString(const char *str);
+void LCD_WriteTwoLines(const char *line1, const char *line2);
 
 #ifdef __cplusplus
 }

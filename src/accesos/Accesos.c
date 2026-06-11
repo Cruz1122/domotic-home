@@ -2,7 +2,7 @@
 #include "../rfid_rc522/rfid_rc522.h"
 #include "../eeprom/eeprom.h"
 #include "../gpio/gpio.h"
-#include "../servo/servo.h"
+#include "../servo/servo_pwm.h"
 #include "../uart/uart.h"
 #include "../timer/timer.h"
 
@@ -70,7 +70,7 @@ static void handle_garage(const uint8_t *uid) {
         set_result("No registrado");
         return;
     }
-    Servo_Open();
+    ServoPwm_Open();
     garage_active = 1;
     garage_tick = Timer_GetMs();
     UART_WriteString(SER_RFID "Garaje abierto: UID ");
@@ -206,7 +206,7 @@ static void handle_recharge(const uint8_t *uid) {
  *  Public API
  * ---------------------------------------------------------- */
 
-void accesos_init(void) {
+void Accesos_Init(void) {
     current_mode  = ACCESS_MODE_NORMAL;
     pending_credits = 0;
     recharge_step = 0;
@@ -221,14 +221,14 @@ void accesos_init(void) {
     UART_WriteEvent(SER_RFID, "Modulo accesos iniciado");
 }
 
-void accesos_task(uint32_t now_ms) {
+void Accesos_Task(uint32_t now_ms) {
     /* --- Non-blocking output timing --- */
     if (door_led_active && Timer_Expired(door_led_tick, 2000)) {
         GPIO_WritePin(PIN_DOOR_LED, GPIO_LOW);
         door_led_active = 0;
     }
     if (garage_active && Timer_Expired(garage_tick, 3000)) {
-        Servo_Close();
+        ServoPwm_Close();
         garage_active = 0;
     }
 
@@ -284,21 +284,21 @@ void accesos_task(uint32_t now_ms) {
     }
 }
 
-void accesos_set_mode(access_mode_t mode) {
+void Accesos_SetMode(access_mode_t mode) {
     current_mode  = mode;
     recharge_step = 0;
     result_pending = 0;
 }
 
-access_mode_t accesos_get_mode(void) {
+access_mode_t Accesos_GetMode(void) {
     return current_mode;
 }
 
-void accesos_set_pending_credits(uint8_t credits) {
+void Accesos_SetPendingCredits(uint8_t credits) {
     pending_credits = credits;
 }
 
-uint8_t accesos_get_result_msg(char *buf, uint8_t max_len) {
+uint8_t Accesos_GetResultMsg(char *buf, uint8_t max_len) {
     if (!result_pending) return 0;
     uint8_t i = 0;
     while (result_msg[i] && i < max_len - 1) {

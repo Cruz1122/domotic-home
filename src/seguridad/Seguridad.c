@@ -39,7 +39,7 @@ static void update_buzzer(void) {
     }
 }
 
-void seguridad_init(void) {
+void Seguridad_Init(void) {
     GPIO_SetPinMode(PIN_PIR_1, GPIO_IN);
     GPIO_SetPinMode(PIN_PIR_2, GPIO_IN);
     GPIO_SetPinMode(PIN_ALARM_BUZZER, GPIO_OUT);
@@ -62,7 +62,7 @@ void seguridad_init(void) {
     UART_WriteEvent(SER_SISTEMA, "Seguridad iniciado");
 }
 
-void seguridad_set_access_alarm(uint8_t active) {
+void Seguridad_SetAccessAlarm(uint8_t active) {
     if (active) {
         if (acc_state == ACC_INACTIVE) {
             acc_state = ACC_ACTIVE;
@@ -80,7 +80,7 @@ void seguridad_set_access_alarm(uint8_t active) {
     }
 }
 
-void seguridad_set_fire_alarm(uint8_t active) {
+void Seguridad_SetFireAlarm(uint8_t active) {
     if (active) {
         if (fire_st == FIRE_INACTIVE) {
             fire_st = FIRE_ACTIVE;
@@ -100,27 +100,27 @@ void seguridad_set_fire_alarm(uint8_t active) {
     }
 }
 
-uint8_t seguridad_get_access_state(void) {
+uint8_t Seguridad_GetAccessState(void) {
     return (uint8_t)acc_state;
 }
 
-uint8_t seguridad_get_fire_state(void) {
+uint8_t Seguridad_GetFireState(void) {
     return (uint8_t)fire_st;
 }
 
-uint8_t seguridad_is_access_triggered(void) {
+uint8_t Seguridad_IsAccessTriggered(void) {
     return (acc_state == ACC_TRIGGERED) ? 1 : 0;
 }
 
-uint8_t seguridad_is_fire_triggered(void) {
+uint8_t Seguridad_IsFireTriggered(void) {
     return (fire_st == FIRE_TRIGGERED) ? 1 : 0;
 }
 
-void seguridad_set_smoke_threshold(uint16_t adc_val) {
+void Seguridad_SetSmokeThreshold(uint16_t adc_val) {
     smoke_threshold = adc_val;
 }
 
-const security_state_t* seguridad_get_state(void) {
+const security_state_t* Seguridad_GetState(void) {
     return &st;
 }
 
@@ -173,7 +173,7 @@ static void check_smoke(uint32_t now_ms) {
     }
 }
 
-void seguridad_task(void) {
+void Seguridad_Task(void) {
     uint32_t now_ms = Timer_GetMs();
     check_pir();
     check_smoke(now_ms);

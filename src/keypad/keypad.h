@@ -7,9 +7,9 @@
 extern "C" {
 #endif
 
-void keypad_init(void);
-void keypad_scan(uint32_t now_ms);
-char keypad_get_key(void);
+void Keypad_Init(void);
+void Keypad_Scan(uint32_t now_ms);
+char Keypad_GetKey(void);
 
 #ifdef __cplusplus
 }

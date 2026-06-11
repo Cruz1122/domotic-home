@@ -168,7 +168,7 @@ static void lcd_delay_ms(uint16_t ms) {
  *    4. Configurar: 4-bit, 2 lineas, 5x8
  *    5. Display off → clear → entry mode → display on
  * ---------------------------------------------------------- */
-void lcd_init(void) {
+void LCD_Init(void) {
     /* Configurar pines LCD como salidas */
     LCD_DDR |= LCD_ALL_MASK;
 
@@ -193,7 +193,7 @@ void lcd_init(void) {
 /* ----------------------------------------------------------
  *  lcd_clear  —  Limpia la pantalla y coloca cursor en (0,0)
  * ---------------------------------------------------------- */
-void lcd_clear(void) {
+void LCD_Clear(void) {
     lcd_write_byte(LCD_CMD_CLEAR, 0);
     lcd_delay_ms(3);
     lcd_write_byte(LCD_CMD_HOME, 0);
@@ -208,7 +208,7 @@ void lcd_clear(void) {
  *  row 1: DDRAM address 0x40 – 0x4F
  *  col debe estar entre 0 y 15
  * ---------------------------------------------------------- */
-void lcd_set_cursor(uint8_t col, uint8_t row) {
+void LCD_SetCursor(uint8_t col, uint8_t row) {
     uint8_t address;
 
     if (row == 0) {
@@ -225,7 +225,7 @@ void lcd_set_cursor(uint8_t col, uint8_t row) {
 /* ----------------------------------------------------------
  *  lcd_write_char  —  Escribe un carácter en posición actual
  * ---------------------------------------------------------- */
-void lcd_write_char(char c) {
+void LCD_WriteChar(char c) {
     lcd_write_byte((uint8_t)c, 1);
     lcd_delay_us(100);
 }
@@ -234,9 +234,9 @@ void lcd_write_char(char c) {
 /* ----------------------------------------------------------
  *  lcd_write_string  —  Escribe cadena terminada en '\0'
  * ---------------------------------------------------------- */
-void lcd_write_string(const char *str) {
+void LCD_WriteString(const char *str) {
     while (*str) {
-        lcd_write_char(*str);
+        LCD_WriteChar(*str);
         str++;
     }
 }
@@ -247,10 +247,10 @@ void lcd_write_string(const char *str) {
  *
  *  Conveniencia para mostrar pantallas de 2 líneas.
  * ---------------------------------------------------------- */
-void lcd_write_two_lines(const char *line1, const char *line2) {
-    lcd_clear();
-    lcd_set_cursor(0, 0);
-    lcd_write_string(line1);
-    lcd_set_cursor(0, 1);
-    lcd_write_string(line2);
+void LCD_WriteTwoLines(const char *line1, const char *line2) {
+    LCD_Clear();
+    LCD_SetCursor(0, 0);
+    LCD_WriteString(line1);
+    LCD_SetCursor(0, 1);
+    LCD_WriteString(line2);
 }

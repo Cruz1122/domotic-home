@@ -18,12 +18,12 @@ typedef enum {
     ACCESS_MODE_RECHARGE_CHILD
 } access_mode_t;
 
-void     accesos_init(void);
-void     accesos_task(uint32_t now_ms);
-void     accesos_set_mode(access_mode_t mode);
-access_mode_t accesos_get_mode(void);
-void     accesos_set_pending_credits(uint8_t credits);
-uint8_t  accesos_get_result_msg(char *buf, uint8_t max_len);
+void     Accesos_Init(void);
+void     Accesos_Task(uint32_t now_ms);
+void     Accesos_SetMode(access_mode_t mode);
+access_mode_t Accesos_GetMode(void);
+void     Accesos_SetPendingCredits(uint8_t credits);
+uint8_t  Accesos_GetResultMsg(char *buf, uint8_t max_len);
 
 #ifdef __cplusplus
 }

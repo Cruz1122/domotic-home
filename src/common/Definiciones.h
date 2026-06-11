@@ -68,6 +68,7 @@
 #define USER_NAME_LEN              8
 
 #define MARKET_MAX_ITEMS           8
+#define MARKET_PRODUCT_COUNT        8
 
 #define EEPROM_MAGIC_0           'D'
 #define EEPROM_MAGIC_1           'H'
@@ -91,11 +92,11 @@ typedef enum {
     APP_ERROR_SCREEN
 } app_state_t;
 
-typedef enum {
-    USER_EMPTY = 0,
-    USER_PARENT,
-    USER_CHILD
-} user_type_t;
+typedef uint8_t user_type_t;
+
+#define USER_EMPTY   0
+#define USER_PARENT  1
+#define USER_CHILD   2
 
 typedef struct {
     uint8_t access_enabled;

@@ -17,6 +17,7 @@ static uint32_t light_tick = 0;
 static uint8_t  volume_percent = 0;
 static uint8_t  sound_enabled = 1;
 static uint32_t volume_tick = 0;
+static uint8_t  volume_remote_mode = 0;
 
 static uint16_t current_temp_c = TEMP_AMBIENT;
 static uint16_t target_temp_c  = TEMP_DEFAULT;
@@ -24,7 +25,7 @@ static uint8_t  heater_active = 0;
 static uint8_t  fan_active = 0;
 static uint32_t temp_tick = 0;
 
-void confort_init(void) {
+void Confort_Init(void) {
     GPIO_SetPinMode(PIN_HEATER_LED, GPIO_OUT);
     GPIO_SetPinMode(PIN_FAN_LED, GPIO_OUT);
     GPIO_WritePin(PIN_HEATER_LED, GPIO_LOW);
@@ -33,7 +34,7 @@ void confort_init(void) {
     UART_WriteEvent(SER_SISTEMA, "Confort iniciado");
 }
 
-void confort_task(void) {
+void Confort_Task(void) {
     uint32_t now_ms = Timer_GetMs();
 
     if (Timer_Expired(light_tick, LIGHT_INTERVAL_MS)) {
@@ -45,12 +46,20 @@ void confort_task(void) {
 
     if (Timer_Expired(volume_tick, VOLUME_INTERVAL_MS)) {
         volume_tick = now_ms;
-        uint16_t raw = ADC_Read(ADC_VOLUME_POT);
-        volume_percent = (uint8_t)((uint32_t)raw * 100 / 1023);
-        if (sound_enabled) {
-            PWM_SetDuty(PIN_SOUND_PWM, (uint8_t)(raw >> 2));
+        if (!volume_remote_mode) {
+            uint16_t raw = ADC_Read(ADC_VOLUME_POT);
+            volume_percent = (uint8_t)((uint32_t)raw * 100 / 1023);
+            if (sound_enabled) {
+                PWM_SetDuty(PIN_SOUND_PWM, (uint8_t)(raw >> 2));
+            } else {
+                PWM_SetDuty(PIN_SOUND_PWM, 0);
+            }
         } else {
-            PWM_SetDuty(PIN_SOUND_PWM, 0);
+            if (sound_enabled) {
+                PWM_SetDuty(PIN_SOUND_PWM, (uint8_t)((uint16_t)volume_percent * 255 / 100));
+            } else {
+                PWM_SetDuty(PIN_SOUND_PWM, 0);
+            }
         }
     }
 
@@ -81,41 +90,48 @@ void confort_task(void) {
     }
 }
 
-uint8_t confort_get_light_percent(void) {
+uint8_t Confort_GetLightPercent(void) {
     return light_percent;
 }
 
-void confort_set_target_temp(uint8_t celsius) {
+void Confort_SetTargetTemp(uint8_t celsius) {
     target_temp_c = celsius;
 }
 
-uint16_t confort_get_current_temp(void) {
+uint16_t Confort_GetCurrentTemp(void) {
     return current_temp_c;
 }
 
-uint16_t confort_get_target_temp(void) {
+uint16_t Confort_GetTargetTemp(void) {
     return target_temp_c;
 }
 
-uint8_t confort_is_heater_active(void) {
+uint8_t Confort_IsHeaterActive(void) {
     return heater_active;
 }
 
-uint8_t confort_is_fan_active(void) {
+uint8_t Confort_IsFanActive(void) {
     return fan_active;
 }
 
-uint8_t confort_get_volume_percent(void) {
+uint8_t Confort_GetVolumePercent(void) {
     return volume_percent;
 }
 
-void confort_set_sound_enabled(uint8_t enabled) {
+void Confort_SetSoundEnabled(uint8_t enabled) {
     sound_enabled = enabled ? 1 : 0;
     if (!sound_enabled) {
         PWM_SetDuty(PIN_SOUND_PWM, 0);
     }
 }
 
-uint8_t confort_is_sound_enabled(void) {
+void Confort_SetVolumePercent(uint8_t pct) {
+    if (pct > 100) pct = 100;
+    volume_remote_mode = 1;
+    volume_percent = pct;
+    PWM_SetDuty(PIN_SOUND_PWM, (uint8_t)((uint16_t)pct * 255 / 100));
+}
+
+uint8_t Confort_IsSoundEnabled(void) {
     return sound_enabled;
 }

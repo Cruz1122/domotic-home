@@ -7,9 +7,9 @@
 extern "C" {
 #endif
 
-void ui_init(void);
-void ui_task(uint32_t now_ms);
-uint8_t ui_last_key(char *key);
+void UI_Init(void);
+void UI_Task(uint32_t now_ms);
+uint8_t UI_LastKey(char *key);
 
 #ifdef __cplusplus
 }

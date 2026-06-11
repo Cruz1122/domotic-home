@@ -7,20 +7,21 @@
 extern "C" {
 #endif
 
-void     confort_init(void);
-void     confort_task(void);
+void     Confort_Init(void);
+void     Confort_Task(void);
 
-uint8_t  confort_get_light_percent(void);
+uint8_t  Confort_GetLightPercent(void);
 
-void     confort_set_target_temp(uint8_t celsius);
-uint16_t confort_get_current_temp(void);
-uint16_t confort_get_target_temp(void);
-uint8_t  confort_is_heater_active(void);
-uint8_t  confort_is_fan_active(void);
+void     Confort_SetTargetTemp(uint8_t celsius);
+uint16_t Confort_GetCurrentTemp(void);
+uint16_t Confort_GetTargetTemp(void);
+uint8_t  Confort_IsHeaterActive(void);
+uint8_t  Confort_IsFanActive(void);
 
-uint8_t  confort_get_volume_percent(void);
-void     confort_set_sound_enabled(uint8_t enabled);
-uint8_t  confort_is_sound_enabled(void);
+uint8_t  Confort_GetVolumePercent(void);
+void     Confort_SetSoundEnabled(uint8_t enabled);
+void     Confort_SetVolumePercent(uint8_t pct);
+uint8_t  Confort_IsSoundEnabled(void);
 
 #ifdef __cplusplus
 }

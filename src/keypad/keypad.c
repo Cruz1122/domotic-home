@@ -103,7 +103,7 @@ ISR(PCINT2_vect) {
 }
 
 
-void keypad_init(void) {
+void Keypad_Init(void) {
     uint8_t jtd;
 
     /* JTAG disable: D34-D37 comparten con JTAG */
@@ -135,7 +135,7 @@ void keypad_init(void) {
 }
 
 
-void keypad_scan(uint32_t now_ms) {
+void Keypad_Scan(uint32_t now_ms) {
     char key;
     uint8_t do_scan = 0;
 
@@ -206,7 +206,7 @@ void keypad_scan(uint32_t now_ms) {
 }
 
 
-char keypad_get_key(void) {
+char Keypad_GetKey(void) {
     char key = pending_key;
     pending_key = '\0';
     return key;

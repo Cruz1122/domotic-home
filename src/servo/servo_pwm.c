@@ -1,4 +1,4 @@
-#include "servo.h"
+#include "servo_pwm.h"
 #include "../gpio/gpio.h"
 #include "../common/Definiciones.h"
 #include <avr/io.h>
@@ -16,7 +16,7 @@ static uint16_t angle_to_pulse(uint8_t degrees) {
     return SERVO_PULSE_MIN + ((uint32_t)(SERVO_PULSE_MAX - SERVO_PULSE_MIN) * degrees / 180);
 }
 
-void Servo_Init(void) {
+void ServoPwm_Init(void) {
     GPIO_SetPinMode(SERVO_PIN, GPIO_OUT);
     GPIO_WritePin(SERVO_PIN, GPIO_LOW);
 
@@ -26,7 +26,7 @@ void Servo_Init(void) {
     TIMSK1 = (1 << OCIE1A);
 }
 
-void Servo_SetAngle(uint8_t degrees) {
+void ServoPwm_SetAngle(uint8_t degrees) {
     uint16_t pulse = angle_to_pulse(degrees);
     uint8_t sreg = SREG;
     cli();
@@ -34,12 +34,12 @@ void Servo_SetAngle(uint8_t degrees) {
     SREG = sreg;
 }
 
-void Servo_Open(void) {
-    Servo_SetAngle(90);
+void ServoPwm_Open(void) {
+    ServoPwm_SetAngle(90);
 }
 
-void Servo_Close(void) {
-    Servo_SetAngle(0);
+void ServoPwm_Close(void) {
+    ServoPwm_SetAngle(0);
 }
 
 ISR(TIMER1_COMPA_vect) {

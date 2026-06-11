@@ -17,7 +17,7 @@
 #include "src/keypad/keypad.h"
 #include "src/adc/adc.h"
 #include "src/pwm/pwm.h"
-#include "src/servo/servo.h"
+#include "src/servo/servo_pwm.h"
 #include "src/seguridad/Seguridad.h"
 #include "src/accesos/Accesos.h"
 #include "src/confort/Confort.h"
@@ -27,9 +27,22 @@
 #include "src/ui/UI.h"
 
 static uint32_t hb_tick = 0;
-static uint8_t  eeprom_checked = 0;
-static uint32_t servo_test_tick = 0;
-static uint8_t  servo_open = 0;
+
+static void seed_test_user(void) {
+    user_record_t u;
+    if (EEPROM_LoadUser(0, &u)) {
+        UART_WriteEvent(SER_EEPROM, "User 0 persistido OK");
+    } else {
+        u.active = 1;
+        u.uid[0] = 0x01; u.uid[1] = 0x02; u.uid[2] = 0x03;
+        u.uid[3] = 0x04; u.uid[4] = 0x05;
+        u.type = USER_CHILD;
+        u.game_credits = 10;
+        u.label[0] = '\0';
+        EEPROM_SaveUser(0, &u);
+        UART_WriteEvent(SER_EEPROM, "User 0 escrito (prueba)");
+    }
+}
 
 void setup(void) {
     UART_Init(9600);
@@ -37,17 +50,18 @@ void setup(void) {
     GPIO_Init();
     ADC_Init();
     PWM_Init();
-    Servo_Init();
+    ServoPwm_Init();
     Timer_Init();
     EEPROM_Init();
 
+    seed_test_user();
+
     RFID_Init();
-    keypad_init();
-    seguridad_init();
-    accesos_init();
-    confort_init();
-    remoto_init();
-    ui_init();
+    Seguridad_Init();
+    Accesos_Init();
+    Confort_Init();
+    Remoto_Init();
+    UI_Init();
 
     UART_WriteEvent(SER_BOOT, "Confort — dimmer volumen temperatura OK");
 }
@@ -55,64 +69,16 @@ void setup(void) {
 void loop(void) {
     Timer_Task();
     uint32_t now_ms = Timer_GetMs();
-    char tecla;
-
-    if (!eeprom_checked) {
-        eeprom_checked = 1;
-        user_record_t u;
-        if (EEPROM_LoadUser(0, &u)) {
-            UART_WriteEvent(SER_EEPROM, "User 0 persistido OK");
-        } else {
-            u.active = 1;
-            u.uid[0] = 0x01; u.uid[1] = 0x02; u.uid[2] = 0x03;
-            u.uid[3] = 0x04; u.uid[4] = 0x05;
-            u.type = USER_CHILD;
-            u.game_credits = 10;
-            EEPROM_SaveUser(0, &u);
-            UART_WriteEvent(SER_EEPROM, "User 0 escrito (prueba)");
-        }
-    }
 
     if (Timer_Expired(hb_tick, 5000)) {
         hb_tick = now_ms;
         UART_WriteEvent(SER_SISTEMA, "Heartbeat OK");
     }
 
-    if (Timer_Expired(servo_test_tick, 3000)) {
-        servo_test_tick = now_ms;
-        if (servo_open) {
-            Servo_Close();
-            UART_WriteEvent(SER_SISTEMA, "Servo: CLOSE");
-        } else {
-            Servo_Open();
-            UART_WriteEvent(SER_SISTEMA, "Servo: OPEN");
-        }
-        servo_open = !servo_open;
-    }
-
     RFID_Task(now_ms);
-    keypad_scan(now_ms);
-    seguridad_task();
-    accesos_task();
-    confort_task();
-    remoto_task();
-    ui_task(now_ms);
-
-    if (RFID_UIDAvailable()) {
-        uint8_t uid[RFID_UID_LEN];
-        RFID_ReadUID(uid);
-        UART_WriteString(SER_RFID "UID: ");
-        for (uint8_t i = 0; i < RFID_UID_LEN; i++) {
-            UART_WriteDecimal(uid[i]);
-            if (i < RFID_UID_LEN - 1) UART_WriteChar(' ');
-        }
-        UART_Newline();
-    }
-
-    tecla = keypad_get_key();
-    if (tecla != '\0') {
-        UART_WriteString(SER_TECLADO "Tecla: ");
-        UART_WriteChar(tecla);
-        UART_Newline();
-    }
+    Seguridad_Task();
+    Accesos_Task(now_ms);
+    Confort_Task();
+    Remoto_Task(now_ms);
+    UI_Task(now_ms);
 }
