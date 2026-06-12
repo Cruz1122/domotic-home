@@ -18,6 +18,30 @@ static uint32_t oven_last_tick;
 static char   cmd_buf[32];
 static uint8_t cmd_len;
 
+/* UART2/UART3 slave response buffers */
+static char   radio_rx_buf[48];
+static uint8_t radio_rx_len;
+static char   oven_rx_buf[48];
+static uint8_t oven_rx_len;
+
+/* ---- Forward helpers ---- */
+
+static void forward_radio(const char *cmd) {
+    UART2_WriteString(cmd);
+    UART2_WriteChar('\n');
+    UART_WriteString("[->RADIO] ");
+    UART_WriteString(cmd);
+    UART_Newline();
+}
+
+static void forward_horno(const char *cmd) {
+    UART3_WriteString(cmd);
+    UART3_WriteChar('\n');
+    UART_WriteString("[->HORNO] ");
+    UART_WriteString(cmd);
+    UART_Newline();
+}
+
 /* ---- Internal helpers ---- */
 
 static uint8_t parse_uint8(const char *s) {
@@ -189,10 +213,12 @@ static void process_command(void) {
     } else if (strcmp(cmd_buf, "RADIO ON") == 0) {
         Confort_SetSoundEnabled(1);
         remote_reply("[OK][RADIO] ON");
+        forward_radio(cmd_buf);
 
     } else if (strcmp(cmd_buf, "RADIO OFF") == 0) {
         Confort_SetSoundEnabled(0);
         remote_reply("[OK][RADIO] OFF");
+        forward_radio(cmd_buf);
 
     } else if (strncmp(cmd_buf, "RADIO VOL ", 10) == 0) {
         uint8_t pct = parse_uint8(cmd_buf + 10);
@@ -206,12 +232,14 @@ static void process_command(void) {
             UART_WriteString("[OK][RADIO] VOL=");
             UART_WriteDecimal(pct);
             UART_Newline();
+            forward_radio(cmd_buf);
         } else {
             remote_reply("[ERR][RADIO] Volumen fuera de rango 0-100");
         }
 
     } else if (strcmp(cmd_buf, "RADIO STATUS") == 0) {
         radio_status();
+        forward_radio(cmd_buf);
 
     } else if (strncmp(cmd_buf, "HORNO ON ", 9) == 0) {
         const char *rest = cmd_buf + 9;
@@ -226,6 +254,7 @@ static void process_command(void) {
             oven_start(temp, min);
             remote_reply("[OK][HORNO] ON");
             oven_status();
+            forward_horno(cmd_buf);
         } else {
             remote_reply("[ERR][HORNO] Use: HORNO ON temp min, temp 10-300, min 1-180");
         }
@@ -235,9 +264,11 @@ static void process_command(void) {
             oven_stop();
         }
         remote_reply("[OK][HORNO] OFF");
+        forward_horno(cmd_buf);
 
     } else if (strcmp(cmd_buf, "HORNO STATUS") == 0) {
         oven_status();
+        forward_horno(cmd_buf);
 
     } else {
         remote_reply("[ERR] Comando desconocido. Escriba HELP");
@@ -275,15 +306,19 @@ static void market_load(void) {
 
 void Remoto_Init(void) {
     UART1_Init(9600);
+    UART2_Init(9600);
+    UART3_Init(9600);
     oven_running = 0;
     cmd_len = 0;
+    radio_rx_len = 0;
+    oven_rx_len = 0;
     market_count = 0;
     market_load();
     UART_WriteEvent(SER_EEPROM, "Lista mercado cargada");
     GPIO_SetPinMode(PIN_OVEN_LED, GPIO_OUT);
     GPIO_WritePin(PIN_OVEN_LED, GPIO_LOW);
     UART1_WriteEvent(SER_SISTEMA, "Canal remoto listo. Escriba HELP");
-    UART_WriteEvent(SER_SISTEMA, "Remoto iniciado por UART1");
+    UART_WriteEvent(SER_SISTEMA, "Remoto iniciado por UART1. Slaves UART2(Radio) UART3(Horno) listos");
 }
 
 void Remoto_Task(uint32_t now_ms) {
@@ -298,6 +333,50 @@ void Remoto_Task(uint32_t now_ms) {
         } else {
             if (cmd_len < sizeof(cmd_buf) - 1) {
                 cmd_buf[cmd_len++] = c;
+            }
+        }
+    }
+
+    /* Read UART2 (radio slave) responses */
+    while (UART2_Available()) {
+        char c = UART2_ReadChar();
+        if (c == '\n' || c == '\r') {
+            if (radio_rx_len > 0) {
+                radio_rx_buf[radio_rx_len] = '\0';
+                UART_WriteString("[RADIO->] ");
+                UART_WriteString(radio_rx_buf);
+                UART_Newline();
+                UART1_WriteString("[RADIO->] ");
+                UART1_WriteString(radio_rx_buf);
+                UART1_WriteChar('\r');
+                UART1_WriteChar('\n');
+                radio_rx_len = 0;
+            }
+        } else {
+            if (radio_rx_len < sizeof(radio_rx_buf) - 1) {
+                radio_rx_buf[radio_rx_len++] = c;
+            }
+        }
+    }
+
+    /* Read UART3 (horno slave) responses */
+    while (UART3_Available()) {
+        char c = UART3_ReadChar();
+        if (c == '\n' || c == '\r') {
+            if (oven_rx_len > 0) {
+                oven_rx_buf[oven_rx_len] = '\0';
+                UART_WriteString("[HORNO->] ");
+                UART_WriteString(oven_rx_buf);
+                UART_Newline();
+                UART1_WriteString("[HORNO->] ");
+                UART1_WriteString(oven_rx_buf);
+                UART1_WriteChar('\r');
+                UART1_WriteChar('\n');
+                oven_rx_len = 0;
+            }
+        } else {
+            if (oven_rx_len < sizeof(oven_rx_buf) - 1) {
+                oven_rx_buf[oven_rx_len++] = c;
             }
         }
     }

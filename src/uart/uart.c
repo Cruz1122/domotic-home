@@ -20,10 +20,14 @@ static volatile uint8_t rx1_head, rx1_tail;
 /* UART2 */
 static volatile uint8_t tx2_buffer[TX_BUF_SIZE];
 static volatile uint8_t tx2_head, tx2_tail;
+static volatile uint8_t rx2_buffer[RX_BUF_SIZE];
+static volatile uint8_t rx2_head, rx2_tail;
 
 /* UART3 */
 static volatile uint8_t tx3_buffer[TX_BUF_SIZE];
 static volatile uint8_t tx3_head, tx3_tail;
+static volatile uint8_t rx3_buffer[RX_BUF_SIZE];
+static volatile uint8_t rx3_head, rx3_tail;
 
 /* ============================================================
  *  UART0
@@ -107,6 +111,7 @@ void UART1_Init(uint32_t baud) {
     UCSR1C = (1 << UCSZ11) | (1 << UCSZ10);
     tx1_head = 0; tx1_tail = 0;
     rx1_head = 0; rx1_tail = 0;
+    PORTD |= (1 << PD2);
 }
 
 void UART1_WriteChar(char c) {
@@ -164,9 +169,11 @@ void UART2_Init(uint32_t baud) {
     uint16_t ubrr = (uint16_t)(F_CPU / 16 / baud - 1);
     UBRR2H = (uint8_t)(ubrr >> 8);
     UBRR2L = (uint8_t)(ubrr);
-    UCSR2B = (1 << TXEN2);
+    UCSR2B = (1 << TXEN2) | (1 << RXEN2) | (1 << RXCIE2);
     UCSR2C = (1 << UCSZ21) | (1 << UCSZ20);
     tx2_head = 0; tx2_tail = 0;
+    rx2_head = 0; rx2_tail = 0;
+    PORTH |= (1 << PH0);
 }
 
 void UART2_WriteChar(char c) {
@@ -190,6 +197,25 @@ void UART2_WriteEvent(const char *tag, const char *msg) {
     UART2_WriteString(tag); UART2_WriteString(msg); UART2_WriteChar('\r'); UART2_WriteChar('\n');
 }
 
+uint8_t UART2_Available(void) {
+    uint8_t h = rx2_head; uint8_t t = rx2_tail;
+    if (h >= t) return h - t;
+    return (RX_BUF_SIZE - t) + h;
+}
+
+char UART2_ReadChar(void) {
+    if (rx2_head == rx2_tail) return '\0';
+    char c = (char)rx2_buffer[rx2_tail];
+    rx2_tail = (uint8_t)(rx2_tail + 1) % RX_BUF_SIZE;
+    return c;
+}
+
+ISR(USART2_RX_vect) {
+    uint8_t data = UDR2;
+    uint8_t next = (uint8_t)(rx2_head + 1) % RX_BUF_SIZE;
+    if (next != rx2_tail) { rx2_buffer[rx2_head] = data; rx2_head = next; }
+}
+
 ISR(USART2_UDRE_vect) {
     if (tx2_head != tx2_tail) {
         UDR2 = tx2_buffer[tx2_tail];
@@ -205,9 +231,11 @@ void UART3_Init(uint32_t baud) {
     uint16_t ubrr = (uint16_t)(F_CPU / 16 / baud - 1);
     UBRR3H = (uint8_t)(ubrr >> 8);
     UBRR3L = (uint8_t)(ubrr);
-    UCSR3B = (1 << TXEN3);
+    UCSR3B = (1 << TXEN3) | (1 << RXEN3) | (1 << RXCIE3);
     UCSR3C = (1 << UCSZ31) | (1 << UCSZ30);
     tx3_head = 0; tx3_tail = 0;
+    rx3_head = 0; rx3_tail = 0;
+    PORTJ |= (1 << PJ0);
 }
 
 void UART3_WriteChar(char c) {
@@ -229,6 +257,25 @@ void UART3_WriteDecimal(uint32_t num) {
 
 void UART3_WriteEvent(const char *tag, const char *msg) {
     UART3_WriteString(tag); UART3_WriteString(msg); UART3_WriteChar('\r'); UART3_WriteChar('\n');
+}
+
+uint8_t UART3_Available(void) {
+    uint8_t h = rx3_head; uint8_t t = rx3_tail;
+    if (h >= t) return h - t;
+    return (RX_BUF_SIZE - t) + h;
+}
+
+char UART3_ReadChar(void) {
+    if (rx3_head == rx3_tail) return '\0';
+    char c = (char)rx3_buffer[rx3_tail];
+    rx3_tail = (uint8_t)(rx3_tail + 1) % RX_BUF_SIZE;
+    return c;
+}
+
+ISR(USART3_RX_vect) {
+    uint8_t data = UDR3;
+    uint8_t next = (uint8_t)(rx3_head + 1) % RX_BUF_SIZE;
+    if (next != rx3_tail) { rx3_buffer[rx3_head] = data; rx3_head = next; }
 }
 
 ISR(USART3_UDRE_vect) {
