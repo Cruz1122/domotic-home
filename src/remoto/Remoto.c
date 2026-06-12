@@ -3,6 +3,7 @@
 #include "../confort/Confort.h"
 #include "../gpio/gpio.h"
 #include "../timer/timer.h"
+#include "../eeprom/eeprom.h"
 #include <string.h>
 
 #define OVEN_MINUTE_MS 5000UL
@@ -107,6 +108,9 @@ static void oven_status(void) {
 
 /* ---- Market list ---- */
 
+static void market_save(void);
+static void market_load(void);
+
 static const char * const product_names[MARKET_PRODUCT_COUNT] = {
     "Pan", "Leche", "Huevos", "Arroz",
     "Cafe", "Azucar", "Aceite", "Fruta"
@@ -123,6 +127,7 @@ uint8_t Remoto_MarketAdd(uint8_t product_id, uint8_t quantity) {
         if (market[i].product_id == product_id) {
             uint16_t new_qty = (uint16_t)market[i].quantity + quantity;
             market[i].quantity = (new_qty > 99) ? 99 : (uint8_t)new_qty;
+            market_save();
             return 1;
         }
     }
@@ -130,11 +135,13 @@ uint8_t Remoto_MarketAdd(uint8_t product_id, uint8_t quantity) {
     market[market_count].product_id = product_id;
     market[market_count].quantity = quantity;
     market_count++;
+    market_save();
     return 1;
 }
 
 void Remoto_MarketClear(void) {
     market_count = 0;
+    market_save();
 }
 
 uint8_t Remoto_MarketGetCount(void) {
@@ -237,6 +244,33 @@ static void process_command(void) {
     }
 }
 
+/* ---- Market EEPROM persistence ---- */
+
+static void market_save(void) {
+    if (market_count > MARKET_MAX_ITEMS) return;
+    uint8_t buf[1 + MARKET_MAX_ITEMS * 2];
+    buf[0] = market_count;
+    for (uint8_t i = 0; i < market_count; i++) {
+        buf[1 + i * 2] = market[i].product_id;
+        buf[1 + i * 2 + 1] = market[i].quantity;
+    }
+    EEPROM_WriteBlock(EEPROM_MARKET_ADDR, buf, 1 + market_count * 2);
+}
+
+static void market_load(void) {
+    uint8_t count = EEPROM_ReadByte(EEPROM_MARKET_ADDR);
+    if (count > MARKET_MAX_ITEMS) {
+        market_count = 0;
+        market_save();
+        return;
+    }
+    market_count = count;
+    for (uint8_t i = 0; i < count; i++) {
+        market[i].product_id = EEPROM_ReadByte(EEPROM_MARKET_ADDR + 1 + i * 2);
+        market[i].quantity = EEPROM_ReadByte(EEPROM_MARKET_ADDR + 1 + i * 2 + 1);
+    }
+}
+
 /* ---- Public API ---- */
 
 void Remoto_Init(void) {
@@ -244,6 +278,8 @@ void Remoto_Init(void) {
     oven_running = 0;
     cmd_len = 0;
     market_count = 0;
+    market_load();
+    UART_WriteEvent(SER_EEPROM, "Lista mercado cargada");
     GPIO_SetPinMode(PIN_OVEN_LED, GPIO_OUT);
     GPIO_WritePin(PIN_OVEN_LED, GPIO_LOW);
     UART1_WriteEvent(SER_SISTEMA, "Canal remoto listo. Escriba HELP");

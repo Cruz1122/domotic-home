@@ -73,6 +73,8 @@
 #define EEPROM_MAGIC_0           'D'
 #define EEPROM_MAGIC_1           'H'
 #define EEPROM_VERSION             1
+#define EEPROM_MARKET_ADDR      0x100
+#define EEPROM_MARKET_MAGIC      'M'
 
 
 /* ============================================================
