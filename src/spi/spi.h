@@ -8,7 +8,7 @@ extern "C" {
 #endif
 
 void     SPI_Init(void);
-uint8_t  SPI_Transfer(uint8_t data);
+uint8_t  SPI_Transfer(uint8_t data, uint8_t *received, uint16_t timeout_ticks);
 void     SPI_Select(void);
 void     SPI_Deselect(void);
 

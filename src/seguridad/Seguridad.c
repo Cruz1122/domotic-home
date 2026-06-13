@@ -28,6 +28,7 @@ static uint8_t  last_pir2 = 0;
 static uint16_t smoke_threshold = SMOKE_THRESHOLD_DEFAULT;
 static uint8_t  smoke_count = 0;
 static uint32_t adc_tick = 0;
+static uint8_t  adc_pending = 0;
 
 static security_state_t st;
 
@@ -39,6 +40,15 @@ static void update_buzzer(void) {
     }
 }
 
+static void publish_smoke_event(uint16_t adc_val, uint8_t percent) {
+    UART_WriteString(SER_FUEGO);
+    UART_WriteString("Humo detectado raw=");
+    UART_WriteDecimal(adc_val);
+    UART_WriteString(" pct=");
+    UART_WriteDecimal(percent);
+    UART_Newline();
+}
+
 void Seguridad_Init(void) {
     GPIO_SetPinMode(PIN_PIR_1, GPIO_IN);
     GPIO_SetPinMode(PIN_PIR_2, GPIO_IN);
@@ -47,6 +57,8 @@ void Seguridad_Init(void) {
     acc_state = ACC_INACTIVE;
     fire_st   = FIRE_INACTIVE;
     smoke_count = 0;
+    adc_pending = 0;
+    adc_tick = Timer_GetMs() - ADC_READ_INTERVAL_MS;
     last_pir1  = GPIO_ReadPin(PIN_PIR_1);
     last_pir2  = GPIO_ReadPin(PIN_PIR_2);
 
@@ -86,6 +98,7 @@ void Seguridad_SetFireAlarm(uint8_t active) {
             fire_st = FIRE_ACTIVE;
             st.fire_enabled = 1;
             smoke_count = 0;
+            adc_tick = Timer_GetMs() - ADC_READ_INTERVAL_MS;
             UART_WriteEvent(SER_FUEGO, "Alarma incendio activada");
         }
     } else {
@@ -117,6 +130,9 @@ uint8_t Seguridad_IsFireTriggered(void) {
 }
 
 void Seguridad_SetSmokeThreshold(uint16_t adc_val) {
+    if (adc_val > 1023U) {
+        adc_val = 1023U;
+    }
     smoke_threshold = adc_val;
 }
 
@@ -151,12 +167,47 @@ static void check_pir(void) {
 }
 
 static void check_smoke(uint32_t now_ms) {
-    if (!Timer_Expired(adc_tick, ADC_READ_INTERVAL_MS)) return;
-    adc_tick = now_ms;
+    uint16_t adc_val = 0;
 
-    uint16_t adc_val = ADC_Read(ADC_MQ2);
+    if (adc_pending) {
+        if (ADC_Poll(&adc_val)) {
+            adc_pending = 0;
+            adc_tick = now_ms;
+        } else if (ADC_IsBusy()) {
+            return;
+        } else {
+            adc_pending = 0;
+            return;
+        }
+    }
+
+    if (!adc_pending) {
+        if (!Timer_Expired(adc_tick, ADC_READ_INTERVAL_MS)) {
+            return;
+        }
+
+        if (ADC_IsBusy()) {
+            if (ADC_Poll(&adc_val)) {
+                adc_tick = now_ms;
+            } else {
+                return;
+            }
+        } else {
+            ADC_Start(ADC_MQ2);
+            adc_pending = 1;
+            if (!ADC_Poll(&adc_val)) {
+                return;
+            }
+            adc_pending = 0;
+            adc_tick = now_ms;
+        }
+    }
+
+    if (adc_val > 1023U) {
+        adc_val = 1023U;
+    }
     st.smoke_adc = adc_val;
-    st.smoke_percent = (uint8_t)((uint32_t)adc_val * 100 / 1023);
+    st.smoke_percent = (uint8_t)((uint32_t)adc_val * 100U / 1023U);
 
     if (fire_st == FIRE_ACTIVE) {
         if (adc_val > smoke_threshold) {
@@ -165,7 +216,7 @@ static void check_smoke(uint32_t now_ms) {
                 fire_st = FIRE_TRIGGERED;
                 st.fire_triggered = 1;
                 update_buzzer();
-                UART_WriteEvent(SER_FUEGO, "Humo detectado!");
+                publish_smoke_event(adc_val, st.smoke_percent);
             }
         } else {
             smoke_count = 0;
@@ -173,8 +224,7 @@ static void check_smoke(uint32_t now_ms) {
     }
 }
 
-void Seguridad_Task(void) {
-    uint32_t now_ms = Timer_GetMs();
+void Seguridad_Task(uint32_t now_ms) {
     check_pir();
     check_smoke(now_ms);
 }

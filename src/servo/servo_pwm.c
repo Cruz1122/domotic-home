@@ -4,10 +4,17 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-#define SERVO_PIN       PIN_GARAGE_SERVO
-#define SERVO_50HZ_TOP  39999
-#define SERVO_PULSE_MIN 2000
-#define SERVO_PULSE_MAX 4000
+/* Safe servo timing, in microseconds, for 50 Hz PWM on Timer1. */
+#define SERVO_PIN               PIN_PWM_SERVO_GARAGE
+#define SERVO_PERIOD_US         20000U
+#define SERVO_PULSE_CLOSED_US    1000U
+#define SERVO_PULSE_OPEN_US      2000U
+#define SERVO_TICKS_PER_US          2U
+
+#define SERVO_US_TO_TICKS(us)   ((uint16_t)((uint32_t)(us) * SERVO_TICKS_PER_US))
+#define SERVO_50HZ_TOP          (SERVO_US_TO_TICKS(SERVO_PERIOD_US) - 1U)
+#define SERVO_PULSE_MIN         SERVO_US_TO_TICKS(SERVO_PULSE_CLOSED_US)
+#define SERVO_PULSE_MAX         SERVO_US_TO_TICKS(SERVO_PULSE_OPEN_US)
 
 static volatile uint16_t target_pulse = SERVO_PULSE_MIN;
 
@@ -23,7 +30,8 @@ void ServoPwm_Init(void) {
     TCCR1A = 0;
     TCCR1B = (1 << WGM12) | (1 << CS11);
     OCR1A = SERVO_50HZ_TOP;
-    TIMSK1 = (1 << OCIE1A);
+    OCR1B = target_pulse;
+    TIMSK1 |= (1 << OCIE1A) | (1 << OCIE1B);
 }
 
 void ServoPwm_SetAngle(uint8_t degrees) {
@@ -43,13 +51,10 @@ void ServoPwm_Close(void) {
 }
 
 ISR(TIMER1_COMPA_vect) {
-    TIMSK1 &= ~(1 << OCIE1B);
     GPIO_WritePin(SERVO_PIN, GPIO_HIGH);
     OCR1B = target_pulse;
-    TIMSK1 |= (1 << OCIE1B);
 }
 
 ISR(TIMER1_COMPB_vect) {
-    TIMSK1 &= ~(1 << OCIE1B);
     GPIO_WritePin(SERVO_PIN, GPIO_LOW);
 }

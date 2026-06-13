@@ -8,10 +8,22 @@
  *  Fuente: docs/02_HARDWARE_Y_PINOUT.md
  * ============================================================ */
 
-/* --- RFID-RC522 (SPI) --- */
-#define PIN_RFID_SS               53
+/* --- SPI / RFID-RC522 --- */
+#ifndef PIN_SPI_SS
+#define PIN_SPI_SS                53
+#endif
+#ifndef PIN_SPI_MOSI
+#define PIN_SPI_MOSI              51
+#endif
+#ifndef PIN_SPI_MISO
+#define PIN_SPI_MISO              50
+#endif
+#ifndef PIN_SPI_SCK
+#define PIN_SPI_SCK               52
+#endif
+
+#define PIN_RFID_SS               PIN_SPI_SS
 #define PIN_RFID_RST              49
-/* SCK=52, MOSI=51, MISO=50 son SPI nativo */
 
 /* --- LCD paralelo 16x2 --- */
 #define PIN_LCD_RS                22
@@ -22,49 +34,74 @@
 #define PIN_LCD_D7                27
 
 /* --- Teclado matricial 4x4 --- */
-/* Filas D34-D37 (PORTC PC3-PC0), Columnas A8-A11 (PORTK PK0-PK3) */
-#define PIN_KEYPAD_R1             34   /* PC3 */
-#define PIN_KEYPAD_R2             35   /* PC2 */
-#define PIN_KEYPAD_R3             36   /* PC1 */
-#define PIN_KEYPAD_R4             37   /* PC0 */
-#define PIN_KEYPAD_C1             62   /* A8 / PK0 / PCINT16 */
-#define PIN_KEYPAD_C2             63   /* A9 / PK1 / PCINT17 */
-#define PIN_KEYPAD_C3             64   /* A10 / PK2 / PCINT18 */
-#define PIN_KEYPAD_C4             65   /* A11 / PK3 / PCINT19 */
+#define PIN_KEYPAD_ROW1           34
+#define PIN_KEYPAD_ROW2           35
+#define PIN_KEYPAD_ROW3           36
+#define PIN_KEYPAD_ROW4           37
+#define PIN_KEYPAD_COL1           62
+#define PIN_KEYPAD_COL2           63
+#define PIN_KEYPAD_COL3           64
+#define PIN_KEYPAD_COL4           65
+
+#define PIN_KEYPAD_R1             PIN_KEYPAD_ROW1
+#define PIN_KEYPAD_R2             PIN_KEYPAD_ROW2
+#define PIN_KEYPAD_R3             PIN_KEYPAD_ROW3
+#define PIN_KEYPAD_R4             PIN_KEYPAD_ROW4
+#define PIN_KEYPAD_C1             PIN_KEYPAD_COL1
+#define PIN_KEYPAD_C2             PIN_KEYPAD_COL2
+#define PIN_KEYPAD_C3             PIN_KEYPAD_COL3
+#define PIN_KEYPAD_C4             PIN_KEYPAD_COL4
 
 /* --- Sensores --- */
-#define PIN_PIR_1                 38
-#define PIN_PIR_2                 39
+#define PIN_PIR1                  38
+#define PIN_PIR2                  39
+#define PIN_PIR_1                 PIN_PIR1
+#define PIN_PIR_2                 PIN_PIR2
+
+/* --- ADC --- */
+#define PIN_MQ2                    0
+#define PIN_LIGHT_POT              1
+#define PIN_VOLUME_POT             2
+
+#define ADC_MQ2                   PIN_MQ2
+#define ADC_LIGHT_POT             PIN_LIGHT_POT
+#define ADC_VOLUME_POT            PIN_VOLUME_POT
 
 /* --- Actuadores digitales --- */
-#define PIN_HEATER_LED            40
-#define PIN_FAN_LED               41
-#define PIN_OVEN_LED              42
+#define PIN_HEATER                40
+#define PIN_FAN                   41
+#define PIN_OVEN                  42
+
+#define PIN_HEATER_LED            PIN_HEATER
+#define PIN_FAN_LED               PIN_FAN
+#define PIN_OVEN_LED              PIN_OVEN
 
 /* --- PWM --- */
-#define PIN_DOOR_LED               6
-#define PIN_LIGHT_PWM              7
-#define PIN_SOUND_PWM              8
-#define PIN_GARAGE_SERVO           9
-#define PIN_ALARM_BUZZER          10
+#define PIN_PWM_DOOR_LED           6
+#define PIN_PWM_LIGHT              7
+#define PIN_PWM_SOUND              8
+#define PIN_PWM_SERVO_GARAGE       9
+#define PIN_PWM_BUZZER_ALARM      10
 
-/* --- Canales ADC --- */
-#define ADC_MQ2                    0
-#define ADC_LIGHT_POT              1
-#define ADC_VOLUME_POT             2
+#define PIN_DOOR_PWM              PIN_PWM_DOOR_LED
+#define PIN_LIGHT_PWM             PIN_PWM_LIGHT
+#define PIN_SOUND_PWM             PIN_PWM_SOUND
+#define PIN_GARAGE_SERVO          PIN_PWM_SERVO_GARAGE
+#define PIN_ALARM_BUZZER          PIN_PWM_BUZZER_ALARM
+
+#define PIN_DOOR_LED              PIN_PWM_DOOR_LED
+#define PIN_BUZZER_ALARM          PIN_PWM_BUZZER_ALARM
 
 
 /* ============================================================
  *  CONSTANTES DEL SISTEMA
  * ============================================================ */
 
-#define RFID_SIMULATED   1       /* Simula RFID por UART (Virtual Terminal) */
-
 #define CODIGO_ADMIN            "1234"
 #define CODE_LEN                   4
 
 #define MAX_USERS                 10
-#define RFID_UID_LEN               5
+#define RFID_UID_LEN               4
 #define USER_NAME_LEN              8
 
 #define MARKET_MAX_ITEMS           8
@@ -72,9 +109,13 @@
 
 #define EEPROM_MAGIC_0           'D'
 #define EEPROM_MAGIC_1           'H'
-#define EEPROM_VERSION             1
+#define EEPROM_VERSION             2
 #define EEPROM_MARKET_ADDR      0x100
 #define EEPROM_MARKET_MAGIC      'M'
+
+#ifndef DOMOTIC_HOME_ENABLE_DEMO_SEED
+#define DOMOTIC_HOME_ENABLE_DEMO_SEED 0
+#endif
 
 
 /* ============================================================

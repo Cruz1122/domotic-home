@@ -7,6 +7,9 @@
 extern "C" {
 #endif
 
+/* Supported on ATmega2560 project pins only.
+ * Unsupported pins are ignored on write/mode and read as 0.
+ */
 #define GPIO_IN    0
 #define GPIO_OUT   1
 #define GPIO_LOW   0

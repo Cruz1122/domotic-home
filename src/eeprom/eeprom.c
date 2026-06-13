@@ -9,6 +9,13 @@ static uint8_t eeprom_calc_checksum(const eeprom_header_t *h) {
     return h->magic0 ^ h->magic1 ^ h->version ^ h->user_count;
 }
 
+static uint8_t eeprom_header_is_valid(const eeprom_header_t *h) {
+    if (h->magic0 != EEPROM_MAGIC_0 || h->magic1 != EEPROM_MAGIC_1) return 0;
+    if (h->version != EEPROM_VERSION) return 0;
+    if (h->user_count > MAX_USERS) return 0;
+    return (h->checksum == eeprom_calc_checksum(h));
+}
+
 uint8_t EEPROM_ReadByte(uint16_t addr) {
     while (EECR & (1 << EEPE));
     EEARH = (uint8_t)(addr >> 8);
@@ -44,20 +51,7 @@ void EEPROM_WriteBlock(uint16_t addr, const uint8_t *buf, uint8_t len) {
 uint8_t EEPROM_IsValid(void) {
     eeprom_header_t h;
     EEPROM_ReadBlock(EEPROM_HEADER_ADDR, (uint8_t *)&h, sizeof(h));
-    if (h.magic0 != EEPROM_MAGIC_0 || h.magic1 != EEPROM_MAGIC_1) {
-        return 0;
-    }
-    if (h.version != EEPROM_VERSION) {
-        return 0;
-    }
-    uint8_t expected = eeprom_calc_checksum(&h);
-    if (h.checksum != expected) {
-        return 0;
-    }
-    if (h.user_count > MAX_USERS) {
-        return 0;
-    }
-    return 1;
+    return eeprom_header_is_valid(&h);
 }
 
 void EEPROM_Format(void) {

@@ -8,7 +8,7 @@ extern "C" {
 #endif
 
 void     Confort_Init(void);
-void     Confort_Task(void);
+void     Confort_Task(uint32_t now_ms);
 
 uint8_t  Confort_GetLightPercent(void);
 

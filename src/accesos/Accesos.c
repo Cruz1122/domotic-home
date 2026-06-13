@@ -4,14 +4,12 @@
 #include "../gpio/gpio.h"
 #include "../servo/servo_pwm.h"
 #include "../uart/uart.h"
-#include "../timer/timer.h"
 
 static access_mode_t current_mode;
 static uint8_t       pending_credits;
 
 /* Recharge internal two-card flow */
 static uint8_t recharge_step;                /* 0=wait parent, 1=wait child */
-static uint8_t recharge_parent_uid[RFID_UID_LEN];
 
 /* Non-blocking output timers */
 static uint8_t  door_led_active;
@@ -47,7 +45,7 @@ static void print_uid(const uint8_t *uid) {
  *  Mode handlers  (private)
  * ---------------------------------------------------------- */
 
-static void handle_main_door(const uint8_t *uid) {
+static void handle_main_door(const uint8_t *uid, uint32_t now_ms) {
     uint8_t idx;
     if (!EEPROM_FindUserByUid(uid, &idx)) {
         UART_WriteEvent(SER_RFID, "Acceso puerta denegado: no registrado");
@@ -56,14 +54,14 @@ static void handle_main_door(const uint8_t *uid) {
     }
     GPIO_WritePin(PIN_DOOR_LED, GPIO_HIGH);
     door_led_active = 1;
-    door_led_tick = Timer_GetMs();
+    door_led_tick = now_ms;
     UART_WriteString(SER_RFID "Acceso puerta autorizado: UID ");
     print_uid(uid);
     UART_Newline();
     set_result("Puerta OK");
 }
 
-static void handle_garage(const uint8_t *uid) {
+static void handle_garage(const uint8_t *uid, uint32_t now_ms) {
     uint8_t idx;
     if (!EEPROM_FindUserByUid(uid, &idx)) {
         UART_WriteEvent(SER_RFID, "Acceso garaje denegado: no registrado");
@@ -72,7 +70,7 @@ static void handle_garage(const uint8_t *uid) {
     }
     ServoPwm_Open();
     garage_active = 1;
-    garage_tick = Timer_GetMs();
+    garage_tick = now_ms;
     UART_WriteString(SER_RFID "Garaje abierto: UID ");
     print_uid(uid);
     UART_Newline();
@@ -166,9 +164,6 @@ static void handle_recharge(const uint8_t *uid) {
             set_result("Se requiere PADRE");
             return;
         }
-        for (uint8_t i = 0; i < RFID_UID_LEN; i++) {
-            recharge_parent_uid[i] = uid[i];
-        }
         recharge_step = 1;
         UART_WriteEvent(SER_RFID, "Padre autenticado. Acerque HIJO");
         set_result("Acerque HIJO");
@@ -223,11 +218,11 @@ void Accesos_Init(void) {
 
 void Accesos_Task(uint32_t now_ms) {
     /* --- Non-blocking output timing --- */
-    if (door_led_active && Timer_Expired(door_led_tick, 2000)) {
+    if (door_led_active && (uint32_t)(now_ms - door_led_tick) >= 2000U) {
         GPIO_WritePin(PIN_DOOR_LED, GPIO_LOW);
         door_led_active = 0;
     }
-    if (garage_active && Timer_Expired(garage_tick, 3000)) {
+    if (garage_active && (uint32_t)(now_ms - garage_tick) >= 3000U) {
         ServoPwm_Close();
         garage_active = 0;
     }
@@ -236,7 +231,19 @@ void Accesos_Task(uint32_t now_ms) {
     if (!RFID_UIDAvailable()) return;
 
     uint8_t uid[RFID_UID_LEN];
-    if (!RFID_ReadUID(uid)) return;
+    uint8_t uid_len = 0;
+    rfid_status_t status = RFID_ReadUIDEx(uid, &uid_len);
+    if (status != RFID_OK) {
+        if (status != RFID_NO_CARD) {
+            UART_WriteEvent(SER_RFID, "UID rechazada: error de lectura");
+        }
+        return;
+    }
+    if (uid_len != RFID_UID_LEN) {
+        UART_WriteEvent(SER_RFID, "UID rechazada: longitud no soportada");
+        set_result("UID invalida");
+        return;
+    }
 
     UART_WriteString(SER_RFID "UID recibido: ");
     print_uid(uid);
@@ -245,12 +252,12 @@ void Accesos_Task(uint32_t now_ms) {
     switch (current_mode) {
         case ACCESS_MODE_NORMAL:
         case ACCESS_MODE_MAIN_DOOR:
-            handle_main_door(uid);
+            handle_main_door(uid, now_ms);
             if (current_mode != ACCESS_MODE_NORMAL) current_mode = ACCESS_MODE_NORMAL;
             break;
 
         case ACCESS_MODE_GARAGE:
-            handle_garage(uid);
+            handle_garage(uid, now_ms);
             current_mode = ACCESS_MODE_NORMAL;
             break;
 
@@ -288,6 +295,8 @@ void Accesos_SetMode(access_mode_t mode) {
     current_mode  = mode;
     recharge_step = 0;
     result_pending = 0;
+    door_led_tick = 0;
+    garage_tick = 0;
 }
 
 access_mode_t Accesos_GetMode(void) {
