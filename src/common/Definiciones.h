@@ -89,6 +89,8 @@
 #define PIN_GARAGE_SERVO          PIN_PWM_SERVO_GARAGE
 #define PIN_ALARM_BUZZER          PIN_PWM_BUZZER_ALARM
 
+#define PIN_FIRE_LED              11
+
 #define PIN_DOOR_LED              PIN_PWM_DOOR_LED
 #define PIN_BUZZER_ALARM          PIN_PWM_BUZZER_ALARM
 

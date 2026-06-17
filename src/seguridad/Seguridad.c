@@ -32,12 +32,9 @@ static uint8_t  adc_pending = 0;
 
 static security_state_t st;
 
-static void update_buzzer(void) {
-    if (acc_state == ACC_TRIGGERED || fire_st == FIRE_TRIGGERED) {
-        GPIO_WritePin(PIN_ALARM_BUZZER, GPIO_HIGH);
-    } else {
-        GPIO_WritePin(PIN_ALARM_BUZZER, GPIO_LOW);
-    }
+static void update_alarm_outputs(void) {
+    GPIO_WritePin(PIN_ALARM_BUZZER, (acc_state == ACC_TRIGGERED) ? GPIO_HIGH : GPIO_LOW);
+    GPIO_WritePin(PIN_FIRE_LED,   (fire_st   == FIRE_TRIGGERED) ? GPIO_HIGH : GPIO_LOW);
 }
 
 static void publish_smoke_event(uint16_t adc_val, uint8_t percent) {
@@ -54,6 +51,8 @@ void Seguridad_Init(void) {
     GPIO_SetPinMode(PIN_PIR_2, GPIO_IN);
     GPIO_SetPinMode(PIN_ALARM_BUZZER, GPIO_OUT);
     GPIO_WritePin(PIN_ALARM_BUZZER, GPIO_LOW);
+    GPIO_SetPinMode(PIN_FIRE_LED, GPIO_OUT);
+    GPIO_WritePin(PIN_FIRE_LED, GPIO_LOW);
     acc_state = ACC_INACTIVE;
     fire_st   = FIRE_INACTIVE;
     smoke_count = 0;
@@ -86,7 +85,7 @@ void Seguridad_SetAccessAlarm(uint8_t active) {
             acc_state = ACC_INACTIVE;
             st.access_enabled = 0;
             st.access_triggered = 0;
-            update_buzzer();
+            update_alarm_outputs();
             UART_WriteEvent(SER_ALARMA, "Alarma acceso desactivada");
         }
     }
@@ -107,7 +106,7 @@ void Seguridad_SetFireAlarm(uint8_t active) {
             st.fire_enabled = 0;
             st.fire_triggered = 0;
             smoke_count = 0;
-            update_buzzer();
+            update_alarm_outputs();
             UART_WriteEvent(SER_FUEGO, "Alarma incendio desactivada");
         }
     }
@@ -151,13 +150,13 @@ static void check_pir(void) {
         if (pir1 && !last_pir1) {
             acc_state = ACC_TRIGGERED;
             st.access_triggered = 1;
-            update_buzzer();
+            update_alarm_outputs();
             UART_WriteEvent(SER_ALARMA, "Intrusion PIR1");
         }
         if (pir2 && !last_pir2) {
             acc_state = ACC_TRIGGERED;
             st.access_triggered = 1;
-            update_buzzer();
+            update_alarm_outputs();
             UART_WriteEvent(SER_ALARMA, "Intrusion PIR2");
         }
     }
@@ -168,44 +167,33 @@ static void check_pir(void) {
 
 static void check_smoke(uint32_t now_ms) {
     uint16_t adc_val = 0;
+    uint8_t  valid   = 0;
 
+    /* Resolver conversion pendiente */
     if (adc_pending) {
         if (ADC_Poll(&adc_val)) {
             adc_pending = 0;
-            adc_tick = now_ms;
-        } else if (ADC_IsBusy()) {
-            return;
-        } else {
+            valid = 1;
+        } else if (!ADC_IsBusy()) {
             adc_pending = 0;
-            return;
         }
     }
 
-    if (!adc_pending) {
-        if (!Timer_Expired(adc_tick, ADC_READ_INTERVAL_MS)) {
-            return;
-        }
-
-        if (ADC_IsBusy()) {
-            if (ADC_Poll(&adc_val)) {
-                adc_tick = now_ms;
-            } else {
-                return;
-            }
-        } else {
+    /* Iniciar nueva conversion si el intervalo expiro */
+    if (!adc_pending && !valid && Timer_Expired(adc_tick, ADC_READ_INTERVAL_MS)) {
+        if (!ADC_IsBusy()) {
             ADC_Start(ADC_MQ2);
             adc_pending = 1;
-            if (!ADC_Poll(&adc_val)) {
-                return;
+            if (ADC_Poll(&adc_val)) {
+                adc_pending = 0;
+                valid = 1;
             }
-            adc_pending = 0;
-            adc_tick = now_ms;
         }
     }
 
-    if (adc_val > 1023U) {
-        adc_val = 1023U;
-    }
+    if (!valid) return;
+
+    if (adc_val > 1023U) adc_val = 1023U;
     st.smoke_adc = adc_val;
     st.smoke_percent = (uint8_t)((uint32_t)adc_val * 100U / 1023U);
 
@@ -215,7 +203,7 @@ static void check_smoke(uint32_t now_ms) {
             if (smoke_count >= SMOKE_DEBOUNCE_COUNT) {
                 fire_st = FIRE_TRIGGERED;
                 st.fire_triggered = 1;
-                update_buzzer();
+                update_alarm_outputs();
                 publish_smoke_event(adc_val, st.smoke_percent);
             }
         } else {

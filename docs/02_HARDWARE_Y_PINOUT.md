@@ -91,7 +91,8 @@ Fuente de verdad: `docs/06_MAPEO_PINES_ATMEGA2560.md`.
 | Calefactor simulado | D40 | Digital |
 | Ventilador simulado | D41 | Digital |
 | Horno simulado | D42 | Digital |
-| Buzzer alarma opcional | D10 | PWM/digital |
+| Buzzer alarma acceso | D10 | PWM/digital |
+| LED alarma incendio | D11 | Digital |
 
 ## Notas de integración
 
@@ -135,6 +136,7 @@ Fuente de verdad: `docs/06_MAPEO_PINES_ATMEGA2560.md`.
 #define PIN_SOUND_PWM            8
 #define PIN_GARAGE_SERVO         9
 #define PIN_ALARM_BUZZER         10
+#define PIN_FIRE_LED            11
 
 #define ADC_MQ2                  0
 #define ADC_LIGHT_POT            1
