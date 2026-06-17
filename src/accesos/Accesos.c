@@ -7,6 +7,7 @@
 
 static access_mode_t current_mode;
 static uint8_t       pending_credits;
+static uint8_t       cur_uid_len;        /* longitud del UID en proceso (4/7/10) */
 
 /* Recharge internal two-card flow */
 static uint8_t recharge_step;                /* 0=wait parent, 1=wait child */
@@ -35,9 +36,9 @@ static void set_result(const char *msg) {
 }
 
 static void print_uid(const uint8_t *uid) {
-    for (uint8_t i = 0; i < RFID_UID_LEN; i++) {
+    for (uint8_t i = 0; i < cur_uid_len; i++) {
         UART_WriteDecimal(uid[i]);
-        if (i < RFID_UID_LEN - 1) UART_WriteChar(' ');
+        if (i + 1 < cur_uid_len) UART_WriteChar(' ');
     }
 }
 
@@ -47,7 +48,7 @@ static void print_uid(const uint8_t *uid) {
 
 static void handle_main_door(const uint8_t *uid, uint32_t now_ms) {
     uint8_t idx;
-    if (!EEPROM_FindUserByUid(uid, &idx)) {
+    if (!EEPROM_FindUserByUid(uid, cur_uid_len, &idx)) {
         UART_WriteEvent(SER_RFID, "Acceso puerta denegado: no registrado");
         set_result("No registrado");
         return;
@@ -63,7 +64,7 @@ static void handle_main_door(const uint8_t *uid, uint32_t now_ms) {
 
 static void handle_garage(const uint8_t *uid, uint32_t now_ms) {
     uint8_t idx;
-    if (!EEPROM_FindUserByUid(uid, &idx)) {
+    if (!EEPROM_FindUserByUid(uid, cur_uid_len, &idx)) {
         UART_WriteEvent(SER_RFID, "Acceso garaje denegado: no registrado");
         set_result("No registrado");
         return;
@@ -81,7 +82,7 @@ static void handle_game_room(const uint8_t *uid) {
     uint8_t idx;
     user_record_t u;
 
-    if (!EEPROM_FindUserByUid(uid, &idx)) {
+    if (!EEPROM_FindUserByUid(uid, cur_uid_len, &idx)) {
         UART_WriteEvent(SER_JUEGOS, "Acceso denegado: tarjeta no registrada");
         set_result("No registrado");
         return;
@@ -111,7 +112,7 @@ static void handle_game_room(const uint8_t *uid) {
 
 static void handle_enroll(const uint8_t *uid, user_type_t type) {
     uint8_t idx;
-    if (EEPROM_FindUserByUid(uid, &idx)) {
+    if (EEPROM_FindUserByUid(uid, cur_uid_len, &idx)) {
         UART_WriteEvent(SER_RFID, "UID ya existe, enrolamiento rechazado");
         set_result("UID ya existe");
         return;
@@ -123,7 +124,9 @@ static void handle_enroll(const uint8_t *uid, user_type_t type) {
     }
     user_record_t u;
     u.active = 1;
-    for (uint8_t i = 0; i < RFID_UID_LEN; i++) u.uid[i] = uid[i];
+    u.uid_len = cur_uid_len;
+    for (uint8_t i = 0; i < cur_uid_len; i++) u.uid[i] = uid[i];
+    for (uint8_t i = cur_uid_len; i < RFID_UID_MAX; i++) u.uid[i] = 0;
     u.type = type;
     u.game_credits = 0;
     u.label[0] = '\0';
@@ -137,7 +140,7 @@ static void handle_enroll(const uint8_t *uid, user_type_t type) {
 
 static void handle_delete(const uint8_t *uid) {
     uint8_t idx;
-    if (!EEPROM_FindUserByUid(uid, &idx)) {
+    if (!EEPROM_FindUserByUid(uid, cur_uid_len, &idx)) {
         UART_WriteEvent(SER_RFID, "UID no encontrado, no se borra");
         set_result("No existe");
         return;
@@ -154,7 +157,7 @@ static void handle_recharge(const uint8_t *uid) {
         /* Step 1: wait for a PARENT card to authorise */
         uint8_t idx;
         user_record_t u;
-        if (!EEPROM_FindUserByUid(uid, &idx) || !EEPROM_LoadUser(idx, &u)) {
+        if (!EEPROM_FindUserByUid(uid, cur_uid_len, &idx) || !EEPROM_LoadUser(idx, &u)) {
             UART_WriteEvent(SER_RFID, "Recarga: tarjeta no registrada");
             set_result("No registrado");
             return;
@@ -173,7 +176,7 @@ static void handle_recharge(const uint8_t *uid) {
     if (recharge_step == 1) {
         uint8_t idx;
         user_record_t u;
-        if (!EEPROM_FindUserByUid(uid, &idx) || !EEPROM_LoadUser(idx, &u)) {
+        if (!EEPROM_FindUserByUid(uid, cur_uid_len, &idx) || !EEPROM_LoadUser(idx, &u)) {
             UART_WriteEvent(SER_RFID, "Recarga: tarjeta no registrada");
             set_result("No registrado");
             return;
@@ -204,6 +207,7 @@ static void handle_recharge(const uint8_t *uid) {
 void Accesos_Init(void) {
     current_mode  = ACCESS_MODE_NORMAL;
     pending_credits = 0;
+    cur_uid_len   = 0;
     recharge_step = 0;
     door_led_active  = 0;
     garage_active    = 0;
@@ -230,7 +234,7 @@ void Accesos_Task(uint32_t now_ms) {
     /* --- Consume UID if available --- */
     if (!RFID_UIDAvailable()) return;
 
-    uint8_t uid[RFID_UID_LEN];
+    uint8_t uid[RFID_UID_MAX];
     uint8_t uid_len = 0;
     rfid_status_t status = RFID_ReadUIDEx(uid, &uid_len);
     if (status != RFID_OK) {
@@ -239,11 +243,12 @@ void Accesos_Task(uint32_t now_ms) {
         }
         return;
     }
-    if (uid_len != RFID_UID_LEN) {
+    if (uid_len < RFID_UID_LEN || uid_len > RFID_UID_MAX) {
         UART_WriteEvent(SER_RFID, "UID rechazada: longitud no soportada");
         set_result("UID invalida");
         return;
     }
+    cur_uid_len = uid_len;
 
     UART_WriteString(SER_RFID "UID recibido: ");
     print_uid(uid);

@@ -135,6 +135,49 @@ static void oven_status(void) {
 static void market_save(void);
 static void market_load(void);
 
+/* Consulta remota de la lista de mercado por UART1 (espejo en UART0). */
+static void market_list(void) {
+    uint8_t count = Remoto_MarketGetCount();
+
+    UART1_WriteString("[STATUS][MERCADO] ");
+    UART1_WriteDecimal(count);
+    UART1_WriteString(" items\r\n");
+    UART_WriteString("[STATUS][MERCADO] ");
+    UART_WriteDecimal(count);
+    UART_WriteString(" items");
+    UART_Newline();
+
+    if (count == 0) {
+        remote_reply("[MERCADO] Lista vacia");
+        return;
+    }
+
+    for (uint8_t i = 0; i < count; i++) {
+        market_item_t item;
+        const char *name;
+        if (!Remoto_MarketGetItem(i, &item)) continue;
+        name = Remoto_MarketGetProductName(item.product_id);
+        if (name == 0) name = "?";
+
+        UART1_WriteString("[MERCADO] ");
+        UART1_WriteDecimal((uint32_t)(i + 1));
+        UART1_WriteString(") ");
+        UART1_WriteString(name);
+        UART1_WriteString(" x");
+        UART1_WriteDecimal(item.quantity);
+        UART1_WriteChar('\r');
+        UART1_WriteChar('\n');
+
+        UART_WriteString("[MERCADO] ");
+        UART_WriteDecimal((uint32_t)(i + 1));
+        UART_WriteString(") ");
+        UART_WriteString(name);
+        UART_WriteString(" x");
+        UART_WriteDecimal(item.quantity);
+        UART_Newline();
+    }
+}
+
 static const char * const product_names[MARKET_PRODUCT_COUNT] = {
     "Pan", "Leche", "Huevos", "Arroz",
     "Cafe", "Azucar", "Aceite", "Fruta"
@@ -208,7 +251,7 @@ static void process_command(void) {
     cmd_buf[cmd_len] = '\0';
 
     if (strcmp(cmd_buf, "HELP") == 0) {
-        remote_reply("Comandos: RADIO ON/OFF/VOL n/STATUS | HORNO ON temp min/OFF/STATUS");
+        remote_reply("Comandos: RADIO ON/OFF/VOL n/STATUS | HORNO ON temp min/OFF/STATUS | MERCADO LIST");
 
     } else if (strcmp(cmd_buf, "RADIO ON") == 0) {
         Confort_SetSoundEnabled(1);
@@ -269,6 +312,10 @@ static void process_command(void) {
     } else if (strcmp(cmd_buf, "HORNO STATUS") == 0) {
         oven_status();
         forward_horno(cmd_buf);
+
+    } else if (strcmp(cmd_buf, "MERCADO LIST") == 0 ||
+               strcmp(cmd_buf, "MERCADO STATUS") == 0) {
+        market_list();
 
     } else {
         remote_reply("[ERR] Comando desconocido. Escriba HELP");

@@ -1,16 +1,37 @@
 #include "rfid_rc522.h"
+#include "../uart/uart.h"
 
-static uint8_t  rf_uid[RFID_UID_LEN];
+/* ------------------------------------------------------------------
+ *  Estado del UID resuelto (compartido por ambas fuentes)
+ * ------------------------------------------------------------------ */
+static uint8_t  rf_uid[RFID_UID_MAX];
 static uint8_t  rf_uid_len;
 static uint8_t  rf_uid_ready;
 static rfid_status_t rf_last_error;
 
-#if RFID_SIMULATED
+static void rf_clear_uid(void) {
+    rf_uid_ready = 0;
+    rf_uid_len = 0;
+    for (uint8_t i = 0; i < RFID_UID_MAX; i++) rf_uid[i] = 0;
+}
 
-#include "../uart/uart.h"
+static void rf_commit_uid(const uint8_t *uid, uint8_t len) {
+    if (len > RFID_UID_MAX) len = RFID_UID_MAX;
+    for (uint8_t i = 0; i < len; i++) rf_uid[i] = uid[i];
+    for (uint8_t i = len; i < RFID_UID_MAX; i++) rf_uid[i] = 0;
+    rf_uid_len = len;
+    rf_uid_ready = 1;
+    rf_last_error = RFID_OK;
+}
+
+/* ==================================================================
+ *  FUENTE 1 — Inyeccion de UID por UART consola (Proteus / pruebas)
+ *  Formato aceptado: pares hex + Enter, p.ej.  "AABBCCDD\n"
+ * ================================================================== */
+#if RFID_UART_INJECT
 
 static uint8_t sim_state;
-static uint8_t sim_uid[RFID_UID_LEN];
+static uint8_t sim_uid[RFID_UID_MAX];
 static uint8_t sim_uid_count;
 static uint8_t sim_nibble;
 
@@ -21,11 +42,50 @@ static uint8_t sim_hex_val(char c) {
     return 0xFF;
 }
 
-#else
+static void sim_reset(void) {
+    sim_state = 0;
+    sim_uid_count = 0;
+    sim_nibble = 0;
+}
+
+static void rf_poll_uart_inject(void) {
+    while (UART_Available()) {
+        char c = UART_ReadChar();
+        uint8_t hv = sim_hex_val(c);
+
+        if (hv != 0xFF) {
+            if (sim_state == 0 || sim_state == 2) {
+                sim_nibble = hv;
+                sim_state = 1;
+            } else {
+                if (sim_uid_count < RFID_UID_MAX) {
+                    sim_uid[sim_uid_count++] = (uint8_t)((sim_nibble << 4) | hv);
+                }
+                sim_state = 2;
+            }
+        } else if (c == '\n' || c == '\r') {
+            /* Acepta 4, 7 o 10 bytes (longitudes ISO14443A validas) */
+            if (sim_uid_count == 4 || sim_uid_count == 7 || sim_uid_count == 10) {
+                rf_commit_uid(sim_uid, sim_uid_count);
+            }
+            sim_reset();
+            if (rf_uid_ready) return;   /* dejar el resto para el proximo ciclo */
+        } else {
+            /* caracter no valido: descartar la captura en curso */
+            sim_reset();
+        }
+    }
+}
+
+#endif /* RFID_UART_INJECT */
+
+/* ==================================================================
+ *  FUENTE 2 — RC522 real por SPI (placa fisica)
+ * ================================================================== */
+#if RFID_USE_RC522
 
 #include "../spi/spi.h"
 #include "../gpio/gpio.h"
-#include "../uart/uart.h"
 
 #define RC522_REG_COMMAND      0x01
 #define RC522_REG_COM_IRQ      0x04
@@ -55,8 +115,14 @@ static uint8_t sim_hex_val(char c) {
 
 #define RC522_PICC_REQA        0x26
 #define RC522_PICC_WUPA        0x52
-#define RC522_PICC_ANTICOLL    0x93
 #define RC522_PICC_SELECT      0x70
+#define RC522_PICC_HLTA        0x50
+#define RC522_PICC_CT          0x88   /* Cascade Tag: UID incompleto, sigue otro nivel */
+
+/* Comandos de nivel de cascada (SEL) */
+#define RC522_CASCADE_L1       0x93
+#define RC522_CASCADE_L2       0x95
+#define RC522_CASCADE_L3       0x97
 
 #define RC522_IRQ_RX           0x20
 #define RC522_IRQ_IDLE         0x10
@@ -214,8 +280,9 @@ static rfid_status_t rf_request(uint8_t cmd, uint32_t now_ms) {
     return (rx_len >= 2) ? RFID_OK : RFID_NO_CARD;
 }
 
-static rfid_status_t rf_anticoll(uint8_t uid[4], uint32_t now_ms) {
-    uint8_t tx[2] = { RC522_PICC_ANTICOLL, 0x20 };
+/* ANTICOLLISION de un nivel de cascada: obtiene 4 bytes + BCC. */
+static rfid_status_t rf_anticoll_level(uint8_t sel_cmd, uint8_t out4[4], uint32_t now_ms) {
+    uint8_t tx[2] = { sel_cmd, 0x20 };
     uint8_t rx[5] = {0};
     uint8_t rx_len = sizeof(rx);
     uint8_t err_reg = 0;
@@ -226,24 +293,25 @@ static rfid_status_t rf_anticoll(uint8_t uid[4], uint32_t now_ms) {
     }
     if (rx_len != 5) return RFID_TIMEOUT;
     if ((uint8_t)(rx[0] ^ rx[1] ^ rx[2] ^ rx[3]) != rx[4]) return RFID_CRC_ERROR;
-    for (uint8_t i = 0; i < 4; i++) uid[i] = rx[i];
+    for (uint8_t i = 0; i < 4; i++) out4[i] = rx[i];
     return RFID_OK;
 }
 
-static rfid_status_t rf_select(uint8_t uid[4], uint32_t now_ms) {
+/* SELECT de un nivel de cascada: devuelve el SAK en *sak. */
+static rfid_status_t rf_select_level(uint8_t sel_cmd, const uint8_t uid4[4], uint8_t *sak, uint32_t now_ms) {
     uint8_t tx[9] = {0};
     uint8_t rx[3] = {0};
     uint8_t rx_len = sizeof(rx);
     uint8_t err_reg = 0;
     rfid_status_t st = RFID_OK;
 
-    tx[0] = RC522_PICC_ANTICOLL;
+    tx[0] = sel_cmd;
     tx[1] = RC522_PICC_SELECT;
-    tx[2] = uid[0];
-    tx[3] = uid[1];
-    tx[4] = uid[2];
-    tx[5] = uid[3];
-    tx[6] = (uint8_t)(uid[0] ^ uid[1] ^ uid[2] ^ uid[3]);
+    tx[2] = uid4[0];
+    tx[3] = uid4[1];
+    tx[4] = uid4[2];
+    tx[5] = uid4[3];
+    tx[6] = (uint8_t)(uid4[0] ^ uid4[1] ^ uid4[2] ^ uid4[3]);
     if (!rc522_calc_crc(tx, 7, &tx[7])) return RFID_HW_ERROR;
 
     if (!rc522_transceive(tx, 9, 0x00, rx, &rx_len, &err_reg, &st)) {
@@ -251,27 +319,60 @@ static rfid_status_t rf_select(uint8_t uid[4], uint32_t now_ms) {
         return st;
     }
     if (rx_len == 0) return RFID_TIMEOUT;
-    if (rx[0] & 0x04) return RFID_UNSUPPORTED_UID;
+    *sak = rx[0];
     return RFID_OK;
 }
 
-#endif
+/* Lee el UID completo recorriendo la cascada (UID de 4, 7 o 10 bytes). */
+static rfid_status_t rf_read_uid_cascade(uint8_t *uid, uint8_t *uid_len, uint32_t now_ms) {
+    static const uint8_t levels[3] = { RC522_CASCADE_L1, RC522_CASCADE_L2, RC522_CASCADE_L3 };
+    uint8_t len = 0;
 
-static void rf_clear_uid(void) {
-    rf_uid_ready = 0;
-    rf_uid_len = 0;
-    for (uint8_t i = 0; i < RFID_UID_LEN; i++) rf_uid[i] = 0;
+    for (uint8_t lvl = 0; lvl < 3; lvl++) {
+        uint8_t blk[4];
+        rfid_status_t st = rf_anticoll_level(levels[lvl], blk, now_ms);
+        if (st != RFID_OK) return st;
+
+        uint8_t sak = 0;
+        st = rf_select_level(levels[lvl], blk, &sak, now_ms);
+        if (st != RFID_OK) return st;
+
+        if (blk[0] == RC522_PICC_CT) {
+            /* Cascade Tag: 3 bytes de UID utiles (blk[1..3]) */
+            if (len + 3 > RFID_UID_MAX) return RFID_UNSUPPORTED_UID;
+            uid[len++] = blk[1];
+            uid[len++] = blk[2];
+            uid[len++] = blk[3];
+        } else {
+            if (len + 4 > RFID_UID_MAX) return RFID_UNSUPPORTED_UID;
+            uid[len++] = blk[0];
+            uid[len++] = blk[1];
+            uid[len++] = blk[2];
+            uid[len++] = blk[3];
+        }
+
+        if (!(sak & 0x04)) {        /* UID completo */
+            *uid_len = len;
+            return RFID_OK;
+        }
+    }
+    return RFID_UNSUPPORTED_UID;     /* mas de 3 niveles: no soportado */
 }
 
-void RFID_Init(void) {
-    rf_last_error = RFID_NO_CARD;
-    rf_clear_uid();
+/* HALT: pasa la tarjeta a estado HALT para evitar re-lecturas hasta que se
+ * retire y se vuelva a acercar (REQA solo despierta tarjetas en IDLE). */
+static void rc522_halt(void) {
+    uint8_t tx[4] = { RC522_PICC_HLTA, 0x00, 0, 0 };
+    uint8_t rx[1] = {0};
+    uint8_t rx_len = sizeof(rx);
+    uint8_t err_reg = 0;
+    rfid_status_t st = RFID_OK;
+    if (!rc522_calc_crc(tx, 2, &tx[2])) return;
+    /* La tarjeta no responde a HLTA: el "timeout" es el resultado esperado. */
+    (void)rc522_transceive(tx, 4, 0x00, rx, &rx_len, &err_reg, &st);
+}
 
-#if RFID_SIMULATED
-    sim_state = 0;
-    sim_uid_count = 0;
-    sim_nibble = 0;
-#else
+static void rc522_init_hw(void) {
     rf_enabled = 1;
     rf_poll_tick = 0;
     rf_cooldown_until = 0;
@@ -297,87 +398,77 @@ void RFID_Init(void) {
 
     uint8_t version = 0;
     if (!rc522_read_reg(RC522_REG_VERSION, &version)) {
-        rf_last_error = RFID_HW_ERROR;
         rf_enabled = 0;
-        UART_WriteEvent(SER_RFID, "RC522 VersionReg read failed");
+        UART_WriteEvent(SER_RFID, "RC522 VersionReg read failed (modo UART)");
         return;
     }
     UART_WriteString(SER_RFID "VersionReg=0x");
     rf_print_hex8(version);
     UART_Newline();
     if (version == 0x00 || version == 0xFF) {
-        rf_last_error = RFID_HW_ERROR;
         rf_enabled = 0;
-        UART_WriteEvent(SER_RFID, "RC522 version invalida, RFID deshabilitado");
+        UART_WriteEvent(SER_RFID, "RC522 ausente, lectura por UART habilitada");
         return;
     }
 
     rc522_write_reg(RC522_REG_TX_CONTROL, 0x03);
+}
+
+/* Devuelve 1 si resolvio un UID en este ciclo. */
+static uint8_t rf_poll_rc522(uint32_t now_ms) {
+    if (!rf_enabled) return 0;
+    if (rf_cooldown_until != 0 && now_ms < rf_cooldown_until) return 0;
+    if (rf_cooldown_until != 0 && now_ms >= rf_cooldown_until) rf_cooldown_until = 0;
+    if (rf_poll_tick != 0 && (now_ms - rf_poll_tick) < RFID_POLL_MS) return 0;
+    rf_poll_tick = now_ms;
+
+    rfid_status_t st = rf_request(RC522_PICC_REQA, now_ms);
+    if (st != RFID_OK) { rf_last_error = st; return 0; }
+
+    uint8_t uid[RFID_UID_MAX] = {0};
+    uint8_t uid_len = 0;
+    st = rf_read_uid_cascade(uid, &uid_len, now_ms);
+    if (st != RFID_OK) {
+        rf_last_error = st;
+        if (st != RFID_NO_CARD && st != RFID_TIMEOUT) rf_log_status(now_ms, st, 0x00);
+        return 0;
+    }
+
+    rc522_halt();
+    rf_commit_uid(uid, uid_len);
+    rf_cooldown_until = now_ms + RFID_COOLDOWN_MS;
+    return 1;
+}
+
+#endif /* RFID_USE_RC522 */
+
+/* ==================================================================
+ *  API publica
+ * ================================================================== */
+
+void RFID_Init(void) {
+    rf_last_error = RFID_NO_CARD;
+    rf_clear_uid();
+
+#if RFID_UART_INJECT
+    sim_reset();
+#endif
+#if RFID_USE_RC522
+    rc522_init_hw();
 #endif
 }
 
 void RFID_Task(uint32_t now_ms) {
-#if RFID_SIMULATED
     if (rf_uid_ready) return;
 
-    while (UART_Available()) {
-        char c = UART_ReadChar();
-        uint8_t hv = sim_hex_val(c);
-
-        if (hv != 0xFF) {
-            if (sim_state == 0 || sim_state == 2) {
-                sim_nibble = hv;
-                sim_state = 1;
-            } else {
-                if (sim_uid_count < RFID_UID_LEN) {
-                    sim_uid[sim_uid_count++] = (uint8_t)((sim_nibble << 4) | hv);
-                }
-                sim_state = 2;
-            }
-        } else if (c == '\n' || c == '\r') {
-            if (sim_uid_count >= RFID_UID_LEN) {
-                for (uint8_t i = 0; i < RFID_UID_LEN; i++) rf_uid[i] = sim_uid[i];
-                rf_uid_len = RFID_UID_LEN;
-                rf_uid_ready = 1;
-                rf_last_error = RFID_OK;
-            }
-            sim_uid_count = 0;
-            sim_state = 0;
-        }
-    }
+#if RFID_USE_RC522
+    if (rf_poll_rc522(now_ms)) return;
 #else
-    if (!rf_enabled || rf_uid_ready) return;
-    if (rf_cooldown_until != 0 && now_ms < rf_cooldown_until) return;
-    if (rf_cooldown_until != 0 && now_ms >= rf_cooldown_until) rf_cooldown_until = 0;
-    if (rf_poll_tick != 0 && (now_ms - rf_poll_tick) < RFID_POLL_MS) return;
-    rf_poll_tick = now_ms;
+    (void)now_ms;
+#endif
 
-    rfid_status_t st = rf_request(RC522_PICC_REQA, now_ms);
-    if (st != RFID_OK) {
-        rf_last_error = st;
-        return;
-    }
-
-    uint8_t uid[4] = {0};
-    st = rf_anticoll(uid, now_ms);
-    if (st != RFID_OK) {
-        rf_last_error = st;
-        return;
-    }
-
-    st = rf_select(uid, now_ms);
-    if (st != RFID_OK) {
-        rf_last_error = st;
-        rf_log_status(now_ms, st, 0x00);
-        return;
-    }
-
-    for (uint8_t i = 0; i < 4 && i < RFID_UID_LEN; i++) rf_uid[i] = uid[i];
-    for (uint8_t i = 4; i < RFID_UID_LEN; i++) rf_uid[i] = 0;
-    rf_uid_len = 4;
-    rf_uid_ready = 1;
-    rf_last_error = RFID_OK;
-    rf_cooldown_until = now_ms + RFID_COOLDOWN_MS;
+#if RFID_UART_INJECT
+    rf_poll_uart_inject();
 #endif
 }
 
@@ -390,10 +481,10 @@ rfid_status_t RFID_ReadUIDEx(uint8_t *uid_out, uint8_t *uid_len) {
     if (!uid_out) return RFID_HW_ERROR;
     if (uid_len) *uid_len = rf_uid_len;
     for (uint8_t i = 0; i < rf_uid_len; i++) uid_out[i] = rf_uid[i];
-    for (uint8_t i = rf_uid_len; i < RFID_UID_LEN; i++) uid_out[i] = 0;
+    for (uint8_t i = rf_uid_len; i < RFID_UID_MAX; i++) uid_out[i] = 0;
     rf_uid_ready = 0;
     rf_last_error = RFID_OK;
-#if !RFID_SIMULATED
+#if RFID_USE_RC522
     rf_cooldown_until = 0;
 #endif
     return RFID_OK;

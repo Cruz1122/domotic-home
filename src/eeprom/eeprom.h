@@ -25,7 +25,7 @@ void     EEPROM_Format(void);
 uint8_t  EEPROM_GetUserCount(void);
 uint8_t  EEPROM_LoadUser(uint8_t index, user_record_t *out);
 uint8_t  EEPROM_SaveUser(uint8_t index, const user_record_t *user);
-uint8_t  EEPROM_FindUserByUid(const uint8_t *uid, uint8_t *index_out);
+uint8_t  EEPROM_FindUserByUid(const uint8_t *uid, uint8_t uid_len, uint8_t *index_out);
 uint8_t  EEPROM_FindFreeSlot(uint8_t *index_out);
 uint8_t  EEPROM_DeleteUser(uint8_t index);
 uint8_t  EEPROM_UpdateGameCredits(uint8_t index, uint8_t credits);

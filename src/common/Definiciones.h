@@ -101,7 +101,8 @@
 #define CODE_LEN                   4
 
 #define MAX_USERS                 10
-#define RFID_UID_LEN               4
+#define RFID_UID_LEN               4   /* longitud por defecto (UID corto / inyeccion UART) */
+#define RFID_UID_MAX              10   /* UID maximo ISO14443A (triple cascada: 4/7/10 bytes) */
 #define USER_NAME_LEN              8
 
 #define MARKET_MAX_ITEMS           8
@@ -109,7 +110,7 @@
 
 #define EEPROM_MAGIC_0           'D'
 #define EEPROM_MAGIC_1           'H'
-#define EEPROM_VERSION             2
+#define EEPROM_VERSION             3
 #define EEPROM_MARKET_ADDR      0x100
 #define EEPROM_MARKET_MAGIC      'M'
 
@@ -166,7 +167,8 @@ typedef struct {
 
 typedef struct {
     uint8_t active;
-    uint8_t uid[RFID_UID_LEN];
+    uint8_t uid[RFID_UID_MAX];
+    uint8_t uid_len;
     user_type_t type;
     uint8_t game_credits;
     char label[USER_NAME_LEN];

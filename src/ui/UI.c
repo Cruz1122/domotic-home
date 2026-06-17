@@ -133,10 +133,22 @@ static void ui_render(void) {
 
         case UI_RFID:
             if (rfid_waiting) {
-                if (Accesos_GetMode() == ACCESS_MODE_RECHARGE_CHILD) {
-                    ui_set_lcd("Acerque PADRE", "");
-                } else {
-                    ui_set_lcd("Acerque tarjeta", "");
+                switch (Accesos_GetMode()) {
+                    case ACCESS_MODE_RECHARGE_CHILD:
+                        ui_set_lcd("Acerque PADRE", "* Cancelar");
+                        break;
+                    case ACCESS_MODE_ENROLL_PARENT:
+                        ui_set_lcd("Registrar PADRE", "Acerque tarjeta");
+                        break;
+                    case ACCESS_MODE_ENROLL_CHILD:
+                        ui_set_lcd("Registrar HIJO", "Acerque tarjeta");
+                        break;
+                    case ACCESS_MODE_DELETE_USER:
+                        ui_set_lcd("Borrar tarjeta", "Acerque tarjeta");
+                        break;
+                    default:
+                        ui_set_lcd("Acerque tarjeta", "* Cancelar");
+                        break;
                 }
             } else {
                 switch (rfid_menu_state) {

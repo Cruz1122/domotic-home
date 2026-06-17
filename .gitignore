@@ -1,2 +1,6 @@
 # Build files
 build/
+
+# Proteus user files
+proteus/Project Backups/
+*.workspace

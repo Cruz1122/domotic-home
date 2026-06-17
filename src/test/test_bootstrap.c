@@ -14,10 +14,12 @@ void TestBootstrap_SeedDemoUser(void) {
     }
 
     user.active = 1;
+    user.uid_len = 4;
     user.uid[0] = 0x01;
     user.uid[1] = 0x02;
     user.uid[2] = 0x03;
     user.uid[3] = 0x04;
+    for (uint8_t i = 4; i < RFID_UID_MAX; i++) user.uid[i] = 0;
     user.type = USER_CHILD;
     user.game_credits = 10;
     user.label[0] = '\0';

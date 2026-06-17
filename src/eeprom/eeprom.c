@@ -108,12 +108,14 @@ uint8_t EEPROM_SaveUser(uint8_t index, const user_record_t *user) {
     return 1;
 }
 
-uint8_t EEPROM_FindUserByUid(const uint8_t *uid, uint8_t *index_out) {
+uint8_t EEPROM_FindUserByUid(const uint8_t *uid, uint8_t uid_len, uint8_t *index_out) {
+    if (uid_len == 0 || uid_len > RFID_UID_MAX) return 0;
     for (uint8_t i = 0; i < MAX_USERS; i++) {
         user_record_t u;
         if (!EEPROM_LoadUser(i, &u)) continue;
+        if (u.uid_len != uid_len) continue;
         uint8_t match = 1;
-        for (uint8_t j = 0; j < RFID_UID_LEN; j++) {
+        for (uint8_t j = 0; j < uid_len; j++) {
             if (u.uid[j] != uid[j]) {
                 match = 0;
                 break;

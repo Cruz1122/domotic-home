@@ -55,7 +55,8 @@ Si alguna condición falla, `EEPROM_Init()` llama a `EEPROM_Format()` y reporta 
 ## Usuario RFID (desde 0x010, 16 B c/u)
 
 ```c
-#define RFID_UID_LEN        5
+#define RFID_UID_LEN        4    // longitud minima (UID corto / inyeccion UART)
+#define RFID_UID_MAX        10   // UID maximo ISO14443A (cascada: 4/7/10 bytes)
 #define MAX_USERS           10
 #define USER_NAME_LEN       8
 
@@ -67,14 +68,18 @@ typedef enum {
 
 typedef struct {
     uint8_t active;                   // 0: libre, 1: ocupado
-    uint8_t uid[RFID_UID_LEN];        // 5 bytes UID de la tarjeta
+    uint8_t uid[RFID_UID_MAX];        // UID (4/7/10 bytes, resto en cero)
+    uint8_t uid_len;                  // longitud real del UID
     user_type_t type;                 // rol
     uint8_t game_credits;             // cupos de juegos
     char label[USER_NAME_LEN];        // nombre (8 chars)
 } user_record_t;
 ```
 
-Tamaño real: `sizeof(user_record_t)` determinado por el compilador (≈16 B). Constante `EEPROM_USER_SIZE = 16` en el driver.
+Tamaño real: `sizeof(user_record_t)` determinado por el compilador. Como el
+layout cambió (UID variable + `uid_len`), `EEPROM_VERSION` subió a **3**: al
+arrancar con datos de una versión anterior, el header no valida y la tabla se
+reformatea automáticamente.
 
 ## Driver (`src/eeprom/eeprom.c`)
 
@@ -93,7 +98,7 @@ Tamaño real: `sizeof(user_record_t)` determinado por el compilador (≈16 B). C
 | `EEPROM_GetUserCount()` | Retorna número de usuarios activos |
 | `EEPROM_LoadUser(index, &out)` | Lee usuario en índice, retorna 1 si activo |
 | `EEPROM_SaveUser(index, &user)` | Escribe usuario; incrementa contador si es nuevo |
-| `EEPROM_FindUserByUid(uid, &index)` | Busca por UID, retorna 1 si existe |
+| `EEPROM_FindUserByUid(uid, uid_len, &index)` | Busca por UID (compara longitud + bytes), retorna 1 si existe |
 | `EEPROM_FindFreeSlot(&index)` | Busca slot con active=0 |
 | `EEPROM_DeleteUser(index)` | Marca active=0, decrementa contador |
 | `EEPROM_UpdateGameCredits(index, credits)` | Escribe un byte en `game_credits` |
