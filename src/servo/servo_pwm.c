@@ -1,6 +1,7 @@
 #include "servo_pwm.h"
 #include "../gpio/gpio.h"
 #include "../common/Definiciones.h"
+#include "../uart/uart.h"
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
@@ -32,6 +33,8 @@ void ServoPwm_Init(void) {
     OCR1A = SERVO_50HZ_TOP;
     OCR1B = target_pulse;
     TIMSK1 |= (1 << OCIE1A) | (1 << OCIE1B);
+
+    UART_WriteEvent(SER_SISTEMA, "Servo Timer1 init OK");
 }
 
 void ServoPwm_SetAngle(uint8_t degrees) {
@@ -40,13 +43,20 @@ void ServoPwm_SetAngle(uint8_t degrees) {
     cli();
     target_pulse = pulse;
     SREG = sreg;
+    UART_WriteString(SER_SISTEMA "Servo angulo=");
+    UART_WriteDecimal(degrees);
+    UART_WriteString(" pulse=");
+    UART_WriteDecimal(pulse);
+    UART_Newline();
 }
 
 void ServoPwm_Open(void) {
+    UART_WriteEvent(SER_SISTEMA, "Servo OPEN 90deg");
     ServoPwm_SetAngle(90);
 }
 
 void ServoPwm_Close(void) {
+    UART_WriteEvent(SER_SISTEMA, "Servo CLOSE 0deg");
     ServoPwm_SetAngle(0);
 }
 

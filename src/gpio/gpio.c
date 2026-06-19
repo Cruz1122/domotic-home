@@ -26,6 +26,7 @@ static uint8_t gpio_map_pin(uint8_t pin, gpio_map_t *map) {
         GPIO_CASE(PIN_SOUND_PWM,  DDRH, PORTH, PINH, 5);
         GPIO_CASE(PIN_GARAGE_SERVO, DDRH, PORTH, PINH, 6);
         GPIO_CASE(PIN_ALARM_BUZZER, DDRB, PORTB, PINB, 4);
+        GPIO_CASE(PIN_FIRE_LED,     DDRB, PORTB, PINB, 5);
         GPIO_CASE(PIN_LCD_RS,     DDRA, PORTA, PINA, 0);
         GPIO_CASE(PIN_LCD_E,      DDRA, PORTA, PINA, 1);
         GPIO_CASE(PIN_LCD_D4,     DDRA, PORTA, PINA, 2);
