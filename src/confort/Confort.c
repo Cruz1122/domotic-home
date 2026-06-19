@@ -11,7 +11,7 @@
 #define TEMP_DEFAULT         22
 #define TEMP_AMBIENT         20
 #define TEMP_HYSTERESIS_C     1
-#define VOLUME_REMOTE_MS   5000
+#define VOLUME_POT_HYSTERESIS 2
 
 typedef enum {
     ADC_REQ_NONE = 0,
@@ -27,8 +27,7 @@ static uint8_t  volume_percent = 0;
 static uint8_t  volume_pot_percent = 0;
 static uint8_t  sound_enabled = 1;
 static uint32_t volume_tick = 0;
-static uint8_t  volume_remote_mode = 0;
-static uint32_t volume_remote_tick = 0;
+
 static uint8_t  volume_reported_percent = 0;
 static uint8_t  sound_reported_enabled = 1;
 static adc_req_t adc_request = ADC_REQ_NONE;
@@ -213,16 +212,17 @@ static void Confort_ProcessAdcSample(uint8_t channel, uint16_t raw) {
     }
 
     if (channel == ADC_VOLUME_POT) {
+        uint8_t delta = (pct > volume_pot_percent)
+                        ? (uint8_t)(pct - volume_pot_percent)
+                        : (uint8_t)(volume_pot_percent - pct);
         volume_pot_percent = pct;
-        if (volume_remote_mode != 0U) {
-            return;
-        }
-
-        volume_percent = pct;
-        Confort_ApplyVolumePwm();
-        if (volume_reported_percent != volume_percent) {
-            volume_reported_percent = volume_percent;
-            Confort_LogPercent(SER_SONIDO, "Volumen", volume_percent);
+        if (delta >= VOLUME_POT_HYSTERESIS) {
+            volume_percent = pct;
+            Confort_ApplyVolumePwm();
+            if (volume_reported_percent != volume_percent) {
+                volume_reported_percent = volume_percent;
+                Confort_LogPercent(SER_SONIDO, "Volumen", volume_percent);
+            }
         }
     }
 }
@@ -261,22 +261,6 @@ static void Confort_ServiceAdc(uint32_t now_ms) {
     }
 }
 
-static void Confort_ServiceVolumeOverride(void) {
-    if (volume_remote_mode == 0U) {
-        return;
-    }
-
-    if (!Timer_Expired(volume_remote_tick, VOLUME_REMOTE_MS)) {
-        return;
-    }
-
-    volume_remote_mode = 0U;
-    volume_percent = volume_pot_percent;
-    volume_reported_percent = volume_percent;
-    Confort_LogPercent(SER_SONIDO, "Volumen pot", volume_percent);
-    Confort_ApplyVolumePwm();
-}
-
 void Confort_Init(void) {
     GPIO_SetPinMode(PIN_HEATER_LED, GPIO_OUT);
     GPIO_SetPinMode(PIN_FAN_LED, GPIO_OUT);
@@ -289,7 +273,6 @@ void Confort_Init(void) {
 }
 
 void Confort_Task(uint32_t now_ms) {
-    Confort_ServiceVolumeOverride();
     Confort_ServiceAdc(now_ms);
     Confort_AdvanceClimate(now_ms);
 }
@@ -337,21 +320,13 @@ void Confort_SetSoundEnabled(uint8_t enabled) {
 }
 
 void Confort_SetVolumePercent(uint8_t pct) {
-    uint8_t was_remote;
-    uint8_t prev_percent;
-
     if (pct > 100) pct = 100;
-    was_remote = volume_remote_mode;
-    prev_percent = volume_percent;
-
-    volume_remote_mode = 1;
-    volume_remote_tick = Timer_GetMs();
-    volume_percent = pct;
-    Confort_ApplyVolumePwm();
-    if ((was_remote == 0U) || (prev_percent != volume_percent)) {
-        volume_reported_percent = volume_percent;
-        Confort_LogPercent(SER_SONIDO, "Volumen remoto", volume_percent);
+    if (volume_percent != pct) {
+        volume_percent = pct;
+        volume_reported_percent = pct;
+        Confort_LogPercent(SER_SONIDO, "Volumen remoto", pct);
     }
+    Confort_ApplyVolumePwm();
 }
 
 uint8_t Confort_IsSoundEnabled(void) {
