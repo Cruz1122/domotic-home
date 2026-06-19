@@ -99,8 +99,8 @@
  *  CONSTANTES DEL SISTEMA
  * ============================================================ */
 
-#define CODIGO_ADMIN            "1234"
-#define CODE_LEN                   4
+#define CODIGO_ADMIN            "123"
+#define CODE_LEN                   3
 
 #define MAX_USERS                 10
 #define RFID_UID_LEN               4   /* longitud por defecto (UID corto / inyeccion UART) */
