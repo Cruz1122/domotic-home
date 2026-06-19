@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./icon.png" alt="Domotic Home" width="160" />
+</p>
+
 <p align="center" style="font-size:2rem;"><strong>Domotic Home</strong></p>
 <p align="center" style="font-size:1.25rem; margin-top:-1em;"><em>Sistema domótico modular en C puro para ATmega2560</em></p>
 
