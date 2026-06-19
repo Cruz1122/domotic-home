@@ -7,7 +7,7 @@
 
 #define LIGHT_INTERVAL_MS   200
 #define VOLUME_INTERVAL_MS  200
-#define TEMP_INTERVAL_MS   2000
+#define TEMP_INTERVAL_MS    50
 #define TEMP_DEFAULT         22
 #define TEMP_AMBIENT         20
 #define TEMP_HYSTERESIS_C     1

@@ -24,6 +24,7 @@ static uint8_t last_key_pending;
 typedef enum {
     UI_HOME = 0,
     UI_SECURITY,
+    UI_SEC_CODE_INPUT,
     UI_RFID,
     UI_ENV,
     UI_SERVICES,
@@ -75,6 +76,10 @@ static rfid_menu_state_t rfid_menu_state;
 static uint8_t  rfid_waiting;
 static uint8_t  rfid_showing_result;
 static uint32_t rfid_result_tick;
+
+/* ---- Security code state ---- */
+static uint8_t  sec_code_target;
+static uint8_t  sec_code_error;
 
 /* ---- Market state ---- */
 static uint8_t market_add_product;
@@ -131,6 +136,18 @@ static void ui_render(void) {
             break;
         }
 
+        case UI_SEC_CODE_INPUT:
+            if (sec_code_error) {
+                ui_set_lcd("Codigo invalido", "*Volver");
+            } else {
+                lcd_line1[0] = '\0';
+                strcpy(lcd_line1, "Codigo:");
+                strcpy(lcd_line2, input_buf);
+                strcat(lcd_line2, " #OK *Vol");
+                lcd_dirty = 1;
+            }
+            break;
+
         case UI_RFID:
             if (rfid_waiting) {
                 switch (Accesos_GetMode()) {
@@ -165,7 +182,11 @@ static void ui_render(void) {
             break;
 
         case UI_ENV: {
-            char l2[LCD_COLS + 1] = "Luz ";
+            char l2[LCD_COLS + 1] = "T:";
+            char tmp[4];
+            u8_to_str(tmp, (uint8_t)Confort_GetCurrentTemp());
+            strcat(l2, tmp);
+            strcat(l2, "C Luz ");
             char pct[4];
             u8_to_str(pct, Confort_GetLightPercent());
             strcat(l2, pct);
@@ -321,9 +342,47 @@ static void ui_handle_key(char key) {
                 previous_screen = screen;
                 screen = UI_HOME;
             } else if (key == '1') {
-                Seguridad_SetAccessAlarm(!Seguridad_GetAccessState());
+                sec_code_target = 1;
+                sec_code_error = 0;
+                input_clear();
+                screen = UI_SEC_CODE_INPUT;
             } else if (key == '2') {
-                Seguridad_SetFireAlarm(!Seguridad_GetFireState());
+                sec_code_target = 2;
+                sec_code_error = 0;
+                input_clear();
+                screen = UI_SEC_CODE_INPUT;
+            }
+            break;
+
+        case UI_SEC_CODE_INPUT:
+            if (sec_code_error) {
+                if (key == '*') {
+                    sec_code_error = 0;
+                    input_clear();
+                    screen = UI_SECURITY;
+                }
+            } else {
+                if (key >= '0' && key <= '9') {
+                    input_push(key);
+                } else if (key == '*') {
+                    input_clear();
+                    screen = UI_SECURITY;
+                } else if (key == '#') {
+                    if (strcmp(input_buf, CODIGO_ADMIN) == 0) {
+                        if (sec_code_target == 1) {
+                            Seguridad_SetAccessAlarm(!Seguridad_GetAccessState());
+                            UART_WriteEvent(SER_LOGIN, "Alarma acceso alternada");
+                        } else {
+                            Seguridad_SetFireAlarm(!Seguridad_GetFireState());
+                            UART_WriteEvent(SER_LOGIN, "Alarma incendio alternada");
+                        }
+                        input_clear();
+                        screen = UI_SECURITY;
+                    } else {
+                        sec_code_error = 1;
+                        UART_WriteEvent(SER_LOGIN, "Codigo invalido");
+                    }
+                }
             }
             break;
 
@@ -557,6 +616,8 @@ void UI_Init(void) {
     rfid_menu_state = RFID_MENU;
     rfid_waiting = 0;
     rfid_showing_result = 0;
+    sec_code_target = 0;
+    sec_code_error = 0;
     input_clear();
     lcd_dirty = 1;
     refresh_tick = 0;
