@@ -101,6 +101,8 @@ Fuente de verdad: `docs/06_MAPEO_PINES_ATMEGA2560.md`.
 | Horno simulado | D42 | Digital |
 | Buzzer alarma acceso | D10 | PWM/digital |
 | LED alarma incendio | D11 | Digital |
+| Pulsador test incendio | D44 | Digital (entrada, pull-up interno) |
+| Pulsador test intrusión | D45 | Digital (entrada, pull-up interno) |
 
 ## Notas de integración
 

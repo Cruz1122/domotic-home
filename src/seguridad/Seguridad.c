@@ -44,7 +44,8 @@ static security_state_t st;
 /* Actualiza las salidas físicas según el estado de cada alarma. */
 static void update_alarm_outputs(void) {
     GPIO_WritePin(PIN_ALARM_BUZZER, (acc_state == ACC_TRIGGERED) ? GPIO_HIGH : GPIO_LOW);
-    GPIO_WritePin(PIN_FIRE_LED,   (fire_st   == FIRE_TRIGGERED) ? GPIO_HIGH : GPIO_LOW);
+    GPIO_WritePin(PIN_ACCESS_LED,   (acc_state == ACC_TRIGGERED) ? GPIO_HIGH : GPIO_LOW);
+    GPIO_WritePin(PIN_FIRE_LED,     (fire_st   == FIRE_TRIGGERED) ? GPIO_HIGH : GPIO_LOW);
 }
 
 static void publish_smoke_event(uint16_t adc_val, uint8_t percent) {
@@ -63,6 +64,10 @@ void Seguridad_Init(void) {
     GPIO_WritePin(PIN_ALARM_BUZZER, GPIO_LOW);
     GPIO_SetPinMode(PIN_FIRE_LED, GPIO_OUT);
     GPIO_WritePin(PIN_FIRE_LED, GPIO_LOW);
+    GPIO_SetPinMode(PIN_ACCESS_LED, GPIO_OUT);
+    GPIO_WritePin(PIN_ACCESS_LED, GPIO_LOW);
+    GPIO_SetPinMode(PIN_FIRE_TEST_SWITCH, GPIO_IN);
+    GPIO_SetPinMode(PIN_ACCESS_TEST_SWITCH, GPIO_IN);
     acc_state = ACC_INACTIVE;
     fire_st   = FIRE_INACTIVE;
     smoke_count = 0;
@@ -178,6 +183,17 @@ static void check_pir(void) {
     last_pir2 = pir2;
 }
 
+/* Revisa el conmutador de prueba de intrusión (D45 a VCC = dispara). */
+static void check_access_switch(void) {
+    uint8_t sw = GPIO_ReadPin(PIN_ACCESS_TEST_SWITCH);
+    if (sw != 0 && acc_state == ACC_ACTIVE) {
+        acc_state = ACC_TRIGGERED;
+        st.access_triggered = 1;
+        update_alarm_outputs();
+        UART_WriteEvent(SER_ALARMA, "Intrusion detectada");
+    }
+}
+
 /* Lee el MQ-2 sin bloquear: arranca la conversión y la resuelve en ciclos.
  * Dispara la alarma de incendio tras SMOKE_DEBOUNCE_COUNT lecturas sobre el umbral. */
 static void check_smoke(uint32_t now_ms) {
@@ -229,8 +245,21 @@ static void check_smoke(uint32_t now_ms) {
     }
 }
 
-/* Tarea periódica: revisa PIR y MQ-2. No bloquea. */
+/* Revisa el conmutador de prueba de incendio (D44 a VCC = dispara). */
+static void check_fire_switch(void) {
+    uint8_t sw = GPIO_ReadPin(PIN_FIRE_TEST_SWITCH);
+    if (sw != 0 && fire_st == FIRE_ACTIVE) {
+        fire_st = FIRE_TRIGGERED;
+        st.fire_triggered = 1;
+        update_alarm_outputs();
+        UART_WriteEvent(SER_FUEGO, "Incendio detectado");
+    }
+}
+
+/* Tarea periódica: revisa PIR, MQ-2 y pulsadores de prueba. No bloquea. */
 void Seguridad_Task(uint32_t now_ms) {
     check_pir();
     check_smoke(now_ms);
+    check_fire_switch();
+    check_access_switch();
 }

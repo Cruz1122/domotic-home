@@ -85,19 +85,20 @@
 #define PIN_OVEN_LED              PIN_OVEN
 
 /* --- PWM --- */
-#define PIN_PWM_DOOR_LED           6
 #define PIN_PWM_LIGHT              7
 #define PIN_PWM_SOUND              8
 #define PIN_PWM_SERVO_GARAGE       9
 #define PIN_PWM_BUZZER_ALARM      10
 
-#define PIN_DOOR_PWM              PIN_PWM_DOOR_LED
 #define PIN_LIGHT_PWM             PIN_PWM_LIGHT
 #define PIN_SOUND_PWM             PIN_PWM_SOUND
 #define PIN_GARAGE_SERVO          PIN_PWM_SERVO_GARAGE
 #define PIN_ALARM_BUZZER          PIN_PWM_BUZZER_ALARM
 
 #define PIN_FIRE_LED              11
+#define PIN_ACCESS_LED            46
+#define PIN_FIRE_TEST_SWITCH      44
+#define PIN_ACCESS_TEST_SWITCH    45
 
 #define PIN_DOOR_LED              43
 #define PIN_BUZZER_ALARM          PIN_PWM_BUZZER_ALARM

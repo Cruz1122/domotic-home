@@ -77,12 +77,16 @@ static char *Confort_AppendU16(char *dst, uint16_t value) {
     return dst;
 }
 
-/* Convierte un porcentaje (0-100) en duty PWM (0-255). */
+/* Convierte un porcentaje (0-100) en duty PWM (0-255) con curva gamma 2.2
+ * para compensar la percepción logarítmica del ojo humano.
+ * Sin gamma, los cambios visibles se concentran en el 0-20%. */
 static uint8_t Confort_PctToDuty(uint8_t pct) {
     if (pct > 100U) {
         pct = 100U;
     }
-    return (uint8_t)(((uint16_t)pct * 255U) / 100U);
+    uint16_t linear = (uint16_t)pct * 255U / 100U;
+    uint32_t gamma = (uint32_t)linear * linear / 255U;
+    return (uint8_t)gamma;
 }
 
 static void Confort_LogPercent(const char *tag, const char *label, uint8_t pct) {
@@ -113,10 +117,9 @@ static void Confort_LogTemp(const char *label, uint16_t value) {
     UART_WriteEvent(SER_SISTEMA, msg);
 }
 
-/* Aplica el PWM de sonido: duty proporcional al volumen remoto, o 0 si apagado. */
+/* Aplica el PWM de sonido: duty proporcional al volumen remoto. */
 static void Confort_ApplyVolumePwm(void) {
-    uint8_t duty = sound_enabled ? Confort_PctToDuty(volume_percent) : 0U;
-    PWM_SetDuty(PIN_SOUND_PWM, duty);
+    PWM_SetDuty(PIN_SOUND_PWM, Confort_PctToDuty(volume_percent));
 }
 
 /* Aplica el PWM de iluminación según el porcentaje del potenciómetro. */

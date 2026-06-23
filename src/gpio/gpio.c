@@ -28,12 +28,14 @@ static uint8_t gpio_map_pin(uint8_t pin, gpio_map_t *map) {
         return 1
 
     switch (pin) {
-        GPIO_CASE(PIN_DOOR_PWM,   DDRH, PORTH, PINH, 3);
         GPIO_CASE(PIN_LIGHT_PWM,  DDRH, PORTH, PINH, 4);
         GPIO_CASE(PIN_SOUND_PWM,  DDRH, PORTH, PINH, 5);
         GPIO_CASE(PIN_GARAGE_SERVO, DDRH, PORTH, PINH, 6);
         GPIO_CASE(PIN_ALARM_BUZZER, DDRB, PORTB, PINB, 4);
         GPIO_CASE(PIN_FIRE_LED,     DDRB, PORTB, PINB, 5);
+        GPIO_CASE(PIN_FIRE_TEST_SWITCH,   DDRL, PORTL, PINL, 5);
+        GPIO_CASE(PIN_ACCESS_TEST_SWITCH, DDRL, PORTL, PINL, 4);
+        GPIO_CASE(PIN_ACCESS_LED,         DDRL, PORTL, PINL, 3);
         GPIO_CASE(PIN_LCD_RS,     DDRA, PORTA, PINA, 0);
         GPIO_CASE(PIN_LCD_E,      DDRA, PORTA, PINA, 1);
         GPIO_CASE(PIN_LCD_D4,     DDRA, PORTA, PINA, 2);
@@ -75,6 +77,9 @@ void GPIO_SetPinMode(uint8_t pin, uint8_t mode) {
     if (!gpio_map_pin(pin, &map)) return;
     if (mode == GPIO_OUT) {
         *map.ddr |= map.mask;
+    } else if (mode == GPIO_IN_PULLUP) {
+        *map.ddr &= (uint8_t)~map.mask;
+        *map.port |= map.mask;
     } else {
         *map.ddr &= (uint8_t)~map.mask;
         *map.port &= (uint8_t)~map.mask;

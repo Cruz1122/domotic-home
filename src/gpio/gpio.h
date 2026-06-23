@@ -13,10 +13,11 @@ extern "C" {
 #endif
 
 /* Pines no soportados por el mapa se ignoran al escribir y leen como 0. */
-#define GPIO_IN    0
-#define GPIO_OUT   1
-#define GPIO_LOW   0
-#define GPIO_HIGH  1
+#define GPIO_IN          0
+#define GPIO_OUT         1
+#define GPIO_IN_PULLUP   2
+#define GPIO_LOW         0
+#define GPIO_HIGH        1
 
 void     GPIO_Init(void);
 void     GPIO_SetPinMode(uint8_t pin, uint8_t mode);

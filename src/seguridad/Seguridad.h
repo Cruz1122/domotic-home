@@ -22,6 +22,8 @@ uint8_t  Seguridad_GetAccessState(void);
 uint8_t  Seguridad_GetFireState(void);
 uint8_t  Seguridad_IsAccessTriggered(void);
 uint8_t  Seguridad_IsFireTriggered(void);
+/* Pulsador físico de prueba (PIN_FIRE_TEST_SWITCH, activo bajo).
+ * En Proteus, botón a GND simula detección de humo cuando la alarma está armada. */
 /* Umbral de humo en cuentas ADC (0..1023). */
 void     Seguridad_SetSmokeThreshold(uint16_t adc_val);
 const security_state_t* Seguridad_GetState(void);

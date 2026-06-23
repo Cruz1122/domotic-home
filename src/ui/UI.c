@@ -141,11 +141,19 @@ static void ui_render(void) {
         case UI_SECURITY: {
             char l1[LCD_COLS + 1];
             strcpy(l1, "1Acc ");
-            strcat(l1, Seguridad_GetAccessState() ? "ON" : "OFF");
+            if (Seguridad_IsAccessTriggered()) {
+                strcat(l1, "ALARMA");
+            } else {
+                strcat(l1, Seguridad_GetAccessState() ? "ON   " : "OFF  ");
+            }
             strcat(l1, " 2Fue");
             char l2[LCD_COLS + 1];
-            strcpy(l2, Seguridad_GetFireState() ? "ON" : "OFF");
-            strcat(l2, " *Volver");
+            if (Seguridad_IsFireTriggered()) {
+                strcpy(l2, "** FUEGO! **");
+            } else {
+                strcpy(l2, Seguridad_GetFireState() ? "ON   " : "OFF  ");
+                strcat(l2, " *Volver");
+            }
             ui_set_lcd(l1, l2);
             break;
         }
