@@ -26,8 +26,9 @@ void UART_WriteEvent(const char *tag, const char *msg);
 uint8_t UART_Available(void);
 char    UART_ReadChar(void);
 
-/* UART1 - control remoto / Virtual Terminal */
+/* UART1 - control remoto / Virtual Terminal (hardware + bridge desde UART0) */
 void UART1_Init(uint32_t baud);
+void UART1_Task(void);
 void UART1_WriteChar(char c);
 void UART1_WriteString(const char *str);
 void UART1_WriteDecimal(uint32_t num);

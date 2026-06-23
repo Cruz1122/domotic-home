@@ -54,11 +54,12 @@ void loop(void) {
      * Ninguna bloquea; todas usan now_ms como reloj (Timer_Millis). */
     uint32_t now_ms = Timer_Millis();
 
-    /* UART0 por sondeo: RX del Monitor Serie y drenado de TX encolado. */
+    /* UART0/UART1 por sondeo: RX del Monitor Serie y del Virtual Terminal (pines 18/19). */
     UART_Task();
+    UART1_Task();
 
-    /* Bridge UART0<->UART1: reenvía lo tecleado en el Monitor Serie (USB)
-     * al parser de comandos y clona las respuestas al mismo canal. */
+    /* Bridge UART0->UART1 RX: reenvía lo tecleado en el Monitor Serie (USB)
+     * al parser de comandos. Las respuestas salen por UART1_Task. */
     UART_Bridge_Task();
 
     RFID_Task(now_ms);
@@ -69,4 +70,5 @@ void loop(void) {
     UI_Task(now_ms);
 
     UART_Task();
+    UART1_Task();
 }

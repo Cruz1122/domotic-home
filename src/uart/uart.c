@@ -102,10 +102,28 @@ void UART1_Init(uint32_t baud) {
     uint16_t ubrr = (uint16_t)(F_CPU / 16 / baud - 1);
     UBRR1H = (uint8_t)(ubrr >> 8);
     UBRR1L = (uint8_t)(ubrr);
-    UCSR1B = (1 << TXEN1);
+    UCSR1B = (1 << TXEN1) | (1 << RXEN1);
     UCSR1C = (1 << UCSZ11) | (1 << UCSZ10);
     tx1_head = 0; tx1_tail = 0;
     rx1_head = 0; rx1_tail = 0;
+}
+
+/* Sondeo no bloqueante de UART1: RX del Virtual Terminal y TX hacia pin 18 + copia a UART0. */
+void UART1_Task(void) {
+    while (UCSR1A & (1 << RXC1)) {
+        uint8_t data = UDR1;
+        uint8_t next = (uint8_t)(rx1_head + 1) % RX_BUF_SIZE;
+        if (next != rx1_tail) {
+            rx1_buffer[rx1_head] = data;
+            rx1_head = next;
+        }
+    }
+    while ((tx1_head != tx1_tail) && (UCSR1A & (1 << UDRE1))) {
+        char c = (char)tx1_buffer[tx1_tail];
+        UDR1 = (uint8_t)c;
+        UART_WriteChar(c);
+        tx1_tail = (uint8_t)(tx1_tail + 1) % TX_BUF_SIZE;
+    }
 }
 
 void UART1_WriteChar(char c) {
@@ -174,9 +192,5 @@ void UART_Bridge_Task(void) {
             UART1_InjectRxChar(c);
         }
     }
-    /* Sentido 2: respuestas encoladas por Remoto en UART1 TX -> UART0 TX.
-       Asi aparecen en el Monitor Serie del PC. */
-    while (UART1_TxAvailable()) {
-        UART_WriteChar(UART1_ReadTxChar());
-    }
+    /* Sentido 2 (TX): UART1_Task drena el buffer TX hacia el pin fisico y UART0. */
 }
