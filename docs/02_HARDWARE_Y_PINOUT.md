@@ -62,10 +62,10 @@ Este pinout es una propuesta inicial. Debe validarse contra la placa física, el
 |---|---:|
 | RS | D22 |
 | E | D23 |
-| D4 | D24 |
-| D5 | D25 |
-| D6 | D26 |
-| D7 | D27 |
+| D4 | D26 |
+| D5 | D27 |
+| D6 | D28 |
+| D7 | D29 |
 | RW | GND |
 | V0 | Potenciómetro contraste |
 
@@ -121,10 +121,10 @@ Fuente de verdad: `docs/06_MAPEO_PINES_ATMEGA2560.md`.
 
 #define PIN_LCD_RS               22
 #define PIN_LCD_E                23
-#define PIN_LCD_D4               24
-#define PIN_LCD_D5               25
-#define PIN_LCD_D6               26
-#define PIN_LCD_D7               27
+#define PIN_LCD_D4               26
+#define PIN_LCD_D5               27
+#define PIN_LCD_D6               28
+#define PIN_LCD_D7               29
 
 #define PIN_KEYPAD_R1            34   /* PC3 */
 #define PIN_KEYPAD_R2            35   /* PC2 */

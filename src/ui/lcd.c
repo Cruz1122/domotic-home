@@ -3,16 +3,16 @@
  *
  *  Plataforma  : ATmega2560 / Arduino Mega 2560
  *  Display     : 16x2, conexión 4 bits (D4-D7), RW=GND
- *  Pines       : definidos en Definiciones.h (PORTA bits 0-5)
+ *  Pines       : definidos en Definiciones.h (PORTA PA0-PA1, PA4-PA7)
  *  Lenguaje    : C puro, sin LiquidCrystal
  *
  *  Diagrama de pines (Mega 2560):
  *    LCD_RS  (pin 22) → PORTA, bit 0
  *    LCD_E   (pin 23) → PORTA, bit 1
- *    LCD_D4  (pin 24) → PORTA, bit 2
- *    LCD_D5  (pin 25) → PORTA, bit 3
- *    LCD_D6  (pin 26) → PORTA, bit 4
- *    LCD_D7  (pin 27) → PORTA, bit 5
+ *    LCD_D4  (pin 26) → PORTA, bit 4
+ *    LCD_D5  (pin 27) → PORTA, bit 5
+ *    LCD_D6  (pin 28) → PORTA, bit 6
+ *    LCD_D7  (pin 29) → PORTA, bit 7
  *
  *  Secuencia de inicialización HD44780 estándar.
  *  No usa delay() de Arduino — solo NOP-loop waits en setup().
@@ -25,7 +25,7 @@
 /* ============================================================
  *  MAPEO DE PINES A PUERTO
  *
- *  Pins 22-27 del Mega 2560 están en PORTA (PA0-PA5).
+ *  RS/E en pins 22-23 (PA0-PA1), D4-D7 en pins 26-29 (PA4-PA7).
  *  Aprovechamos acceso directo a registros en vez de
  *  digitalWrite() para minimizar sobrecarga.
  * ============================================================ */
@@ -35,10 +35,10 @@
 
 #define LCD_RS     (1 << 0)   /* pin 22 = PA0 */
 #define LCD_E      (1 << 1)   /* pin 23 = PA1 */
-#define LCD_D4     (1 << 2)   /* pin 24 = PA2 */
-#define LCD_D5     (1 << 3)   /* pin 25 = PA3 */
-#define LCD_D6     (1 << 4)   /* pin 26 = PA4 */
-#define LCD_D7     (1 << 5)   /* pin 27 = PA5 */
+#define LCD_D4     (1 << 4)   /* pin 26 = PA4 */
+#define LCD_D5     (1 << 5)   /* pin 27 = PA5 */
+#define LCD_D6     (1 << 6)   /* pin 28 = PA6 */
+#define LCD_D7     (1 << 7)   /* pin 29 = PA7 */
 
 #define LCD_DATA_MASK  (LCD_D4 | LCD_D5 | LCD_D6 | LCD_D7)
 #define LCD_CTRL_MASK  (LCD_RS | LCD_E)
@@ -102,8 +102,8 @@ static void lcd_write_nibble(uint8_t nibble, uint8_t rs) {
     /* RS */
     if (rs) port_val |= LCD_RS;
 
-    /* Colocar nibble en bits 2-5 (D4=Lsb, D7=Msb) */
-    port_val |= ((nibble & 0x0F) << 2) & LCD_DATA_MASK;
+    /* Colocar nibble en bits 4-7 (D4=Lsb, D7=Msb) */
+    port_val |= ((nibble & 0x0F) << 4) & LCD_DATA_MASK;
 
     LCD_PORT = port_val;
     lcd_pulse_e();

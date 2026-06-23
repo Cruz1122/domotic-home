@@ -38,10 +38,10 @@ static uint8_t gpio_map_pin(uint8_t pin, gpio_map_t *map) {
         GPIO_CASE(PIN_ACCESS_LED,         DDRL, PORTL, PINL, 3);
         GPIO_CASE(PIN_LCD_RS,     DDRA, PORTA, PINA, 0);
         GPIO_CASE(PIN_LCD_E,      DDRA, PORTA, PINA, 1);
-        GPIO_CASE(PIN_LCD_D4,     DDRA, PORTA, PINA, 2);
-        GPIO_CASE(PIN_LCD_D5,     DDRA, PORTA, PINA, 3);
-        GPIO_CASE(PIN_LCD_D6,     DDRA, PORTA, PINA, 4);
-        GPIO_CASE(PIN_LCD_D7,     DDRA, PORTA, PINA, 5);
+        GPIO_CASE(PIN_LCD_D4,     DDRA, PORTA, PINA, 4);
+        GPIO_CASE(PIN_LCD_D5,     DDRA, PORTA, PINA, 5);
+        GPIO_CASE(PIN_LCD_D6,     DDRA, PORTA, PINA, 6);
+        GPIO_CASE(PIN_LCD_D7,     DDRA, PORTA, PINA, 7);
         GPIO_CASE(PIN_KEYPAD_ROW1, DDRC, PORTC, PINC, 3);
         GPIO_CASE(PIN_KEYPAD_ROW2, DDRC, PORTC, PINC, 2);
         GPIO_CASE(PIN_KEYPAD_ROW3, DDRC, PORTC, PINC, 1);

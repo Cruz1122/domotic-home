@@ -38,10 +38,10 @@
 /* --- LCD paralelo 16x2 --- */
 #define PIN_LCD_RS                22
 #define PIN_LCD_E                 23
-#define PIN_LCD_D4                24
-#define PIN_LCD_D5                25
-#define PIN_LCD_D6                26
-#define PIN_LCD_D7                27
+#define PIN_LCD_D4                26
+#define PIN_LCD_D5                27
+#define PIN_LCD_D6                28
+#define PIN_LCD_D7                29
 
 /* --- Teclado matricial 4x4 --- */
 #define PIN_KEYPAD_ROW1           34

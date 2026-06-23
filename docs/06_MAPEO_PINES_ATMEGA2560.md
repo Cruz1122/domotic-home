@@ -112,7 +112,7 @@ Este documento contiene la consolidación del mapeo de pines para el microcontro
 
 | Subsistema | Pines Arduino | Puerto MCU |
 | :--- | :--- | :--- |
-| LCD RS/E/D4-D7 | D22-D27 | PA0-PA5 |
+| LCD RS/E/D4-D7 | D22-D23, D26-D29 | PA0-PA1, PA4-PA7 |
 | Teclado filas R1-R4 | D34-D37 | PC3-PC0 |
 | Teclado columnas C1-C4 | A8-A11 | PK0-PK3 (PCINT16-19) |
 | RFID SPI | D50-D53 | PB3-PB0 |
