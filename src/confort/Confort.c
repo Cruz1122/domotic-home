@@ -6,17 +6,14 @@
 #include "../uart/uart.h"
 
 #define LIGHT_INTERVAL_MS   200
-#define VOLUME_INTERVAL_MS  200
 #define TEMP_INTERVAL_MS    50
 #define TEMP_DEFAULT         22
 #define TEMP_AMBIENT         20
 #define TEMP_HYSTERESIS_C     1
-#define VOLUME_POT_HYSTERESIS 2
 
 typedef enum {
     ADC_REQ_NONE = 0,
-    ADC_REQ_LIGHT,
-    ADC_REQ_VOLUME
+    ADC_REQ_LIGHT
 } adc_req_t;
 
 static uint8_t  light_percent = 0;
@@ -24,12 +21,10 @@ static uint32_t light_tick = 0;
 static uint8_t  light_reported_percent = 0;
 
 static uint8_t  volume_percent = 0;
-static uint8_t  volume_pot_percent = 0;
-static uint8_t  sound_enabled = 1;
-static uint32_t volume_tick = 0;
+static uint8_t  sound_enabled = 0;
 
 static uint8_t  volume_reported_percent = 0;
-static uint8_t  sound_reported_enabled = 1;
+static uint8_t  sound_reported_enabled = 0;
 static adc_req_t adc_request = ADC_REQ_NONE;
 
 static uint16_t current_temp_c = TEMP_AMBIENT;
@@ -211,20 +206,6 @@ static void Confort_ProcessAdcSample(uint8_t channel, uint16_t raw) {
         return;
     }
 
-    if (channel == ADC_VOLUME_POT) {
-        uint8_t delta = (pct > volume_pot_percent)
-                        ? (uint8_t)(pct - volume_pot_percent)
-                        : (uint8_t)(volume_pot_percent - pct);
-        volume_pot_percent = pct;
-        if (delta >= VOLUME_POT_HYSTERESIS) {
-            volume_percent = pct;
-            Confort_ApplyVolumePwm();
-            if (volume_reported_percent != volume_percent) {
-                volume_reported_percent = volume_percent;
-                Confort_LogPercent(SER_SONIDO, "Volumen", volume_percent);
-            }
-        }
-    }
 }
 
 static void Confort_ServiceAdc(uint32_t now_ms) {
@@ -232,15 +213,10 @@ static void Confort_ServiceAdc(uint32_t now_ms) {
 
     if (adc_request != ADC_REQ_NONE) {
         if (ADC_Poll(&raw)) {
-            uint8_t channel = (adc_request == ADC_REQ_LIGHT) ? ADC_LIGHT_POT : ADC_VOLUME_POT;
+            uint8_t channel = ADC_LIGHT_POT;
             adc_request = ADC_REQ_NONE;
             Confort_ProcessAdcSample(channel, raw);
-
-            if (channel == ADC_LIGHT_POT) {
-                light_tick = now_ms;
-            } else {
-                volume_tick = now_ms;
-            }
+            light_tick = now_ms;
         }
         return;
     }
@@ -252,12 +228,6 @@ static void Confort_ServiceAdc(uint32_t now_ms) {
     if (Timer_Expired(light_tick, LIGHT_INTERVAL_MS)) {
         ADC_Start(ADC_LIGHT_POT);
         adc_request = ADC_REQ_LIGHT;
-        return;
-    }
-
-    if (Timer_Expired(volume_tick, VOLUME_INTERVAL_MS)) {
-        ADC_Start(ADC_VOLUME_POT);
-        adc_request = ADC_REQ_VOLUME;
     }
 }
 
@@ -311,7 +281,7 @@ uint8_t Confort_GetVolumePercent(void) {
 }
 
 void Confort_SetSoundEnabled(uint8_t enabled) {
-    sound_enabled = enabled ? 1 : 0;
+    sound_enabled = enabled ? 1U : 0U;
     if (sound_reported_enabled != sound_enabled) {
         sound_reported_enabled = sound_enabled;
         UART_WriteEvent(SER_SONIDO, sound_enabled ? "Sonido ON" : "Sonido OFF");
@@ -320,7 +290,7 @@ void Confort_SetSoundEnabled(uint8_t enabled) {
 }
 
 void Confort_SetVolumePercent(uint8_t pct) {
-    if (pct > 100) pct = 100;
+    if (pct > 100U) pct = 100U;
     if (volume_percent != pct) {
         volume_percent = pct;
         volume_reported_percent = pct;

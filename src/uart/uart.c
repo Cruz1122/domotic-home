@@ -17,13 +17,13 @@ static volatile uint8_t tx1_head, tx1_tail;
 static volatile uint8_t rx1_buffer[RX_BUF_SIZE];
 static volatile uint8_t rx1_head, rx1_tail;
 
-/* UART2 */
+/* UART2 - libre / uso futuro */
 static volatile uint8_t tx2_buffer[TX_BUF_SIZE];
 static volatile uint8_t tx2_head, tx2_tail;
 static volatile uint8_t rx2_buffer[RX_BUF_SIZE];
 static volatile uint8_t rx2_head, rx2_tail;
 
-/* UART3 */
+/* UART3 - libre / uso futuro */
 static volatile uint8_t tx3_buffer[TX_BUF_SIZE];
 static volatile uint8_t tx3_head, tx3_tail;
 static volatile uint8_t rx3_buffer[RX_BUF_SIZE];
@@ -162,7 +162,7 @@ ISR(USART1_UDRE_vect) {
 }
 
 /* ============================================================
- *  UART2 - radio slave
+ *  UART2 - libre / uso futuro
  * ============================================================ */
 
 void UART2_Init(uint32_t baud) {
@@ -224,7 +224,7 @@ ISR(USART2_UDRE_vect) {
 }
 
 /* ============================================================
- *  UART3 - horno slave
+ *  UART3 - libre / uso futuro
  * ============================================================ */
 
 void UART3_Init(uint32_t baud) {

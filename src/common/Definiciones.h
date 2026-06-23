@@ -65,11 +65,9 @@
 /* --- ADC --- */
 #define PIN_MQ2                    0
 #define PIN_LIGHT_POT              1
-#define PIN_VOLUME_POT             2
 
 #define ADC_MQ2                   PIN_MQ2
 #define ADC_LIGHT_POT             PIN_LIGHT_POT
-#define ADC_VOLUME_POT            PIN_VOLUME_POT
 
 /* --- Actuadores digitales --- */
 #define PIN_HEATER                40
@@ -127,8 +125,6 @@
 
 #define UART_DEBUG_ID               0
 #define UART_REMOTE_ID              1
-#define UART_RADIO_ID               2
-#define UART_OVEN_ID                3
 
 #ifndef DOMOTIC_HOME_ENABLE_DEMO_SEED
 #define DOMOTIC_HOME_ENABLE_DEMO_SEED 0
@@ -142,7 +138,6 @@
 
 typedef enum {
     APP_BOOT = 0,
-    APP_LOGIN,
     APP_MAIN_MENU,
     APP_SECURITY_MENU,
     APP_RFID_MENU,
@@ -211,7 +206,6 @@ typedef struct {
  * ============================================================ */
 
 #define SER_BOOT    "[BOOT] "
-#define SER_LOGIN   "[LOGIN] "
 #define SER_ALARMA  "[ALARMA ACCESO] "
 #define SER_FUEGO   "[ALARMA INCENDIO] "
 #define SER_RFID    "[RFID] "

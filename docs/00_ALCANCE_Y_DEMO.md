@@ -8,7 +8,7 @@ Este documento fija el alcance real del proyecto `domotic-home`. Su función es 
 
 El sistema se implementará sobre ATmega2560 con módulos propios en C puro. La interfaz principal será LCD + teclado matricial 4x4. La telemetría y los eventos críticos se reportarán por UART/Serial.
 
-El término "remoto" del enunciado se resolverá como operación desde una interfaz local de usuario: el usuario no manipula directamente los actuadores, sino que solicita acciones desde el menú LCD/teclado. No se implementará WiFi, Bluetooth, Ethernet ni GSM salvo que se agregue hardware adicional y se actualice este documento.
+El término "remoto" del enunciado se resolverá como operación por `UART1 / Virtual Terminal`. No se implementará WiFi, Bluetooth, Ethernet ni GSM salvo que se agregue hardware adicional y se actualice este documento.
 
 ## Implementación física vs simulada
 
@@ -25,25 +25,26 @@ El término "remoto" del enunciado se resolverá como operación desde una inter
 | Carga de accesos de hijos | Menú de administrador/padre |
 | Iluminación dimerizada | LED PWM con nivel definido por potenciómetro |
 | Temperatura ambiente | Control simulado desde teclado; calefactor/ventilador con LEDs o relé |
-| Horno remoto | Configuración desde menú; LED/relé como actuador; temporización no bloqueante |
-| Sonido remoto | ON/OFF desde menú; volumen por potenciómetro; porcentaje en LCD; PWM proporcional |
-| Lista de mercado | Productos predefinidos + cantidad; consulta por LCD |
+| Horno remoto | Configuración por `UART1`; LED/relé como actuador; temporización no bloqueante |
+| Sonido remoto | ON/OFF y volumen por `UART1`; porcentaje en LCD; PWM proporcional |
+| Lista de mercado | Productos predefinidos + cantidad; consulta por `UART1` |
 
 ## Demo mínima obligatoria
 
 La secuencia recomendada para la presentación es la siguiente:
 
-1. **Arranque e ingreso seguro.** El LCD muestra solicitud de código. Se digita el código por teclado. Si el código es correcto, entra al menú principal. Si no, se reporta intento inválido por serial.
-2. **Alarma de acceso.** Se activa desde menú de seguridad. Luego se dispara un PIR. El LCD muestra intrusión y el serial reporta el evento.
-3. **Alarma de incendio.** Se activa desde menú. Luego se dispara o simula lectura alta del MQ-2. El LCD muestra nivel de humo y el serial reporta alarma de incendio.
-4. **RFID puerta principal.** Se acerca una tarjeta autorizada. El sistema reconoce el UID y enciende el LED de puerta principal durante un intervalo corto.
-5. **RFID garaje.** Se acerca una tarjeta autorizada o se selecciona garaje desde menú. El servo ejecuta apertura/cierre.
-6. **Sala de juegos.** Se acerca tarjeta de hijo. Si tiene cupos, se permite ingreso y se descuenta uno. Si no tiene cupos, se deniega.
-7. **Persistencia.** Se reinicia el sistema y se demuestra que los cupos descontados siguen en EEPROM.
-8. **Dimmer.** Se entra al módulo de iluminación y se varía el potenciómetro. El LED cambia intensidad y el LCD muestra porcentaje.
-9. **Horno.** Se ingresa temperatura y tiempo desde teclado. El sistema muestra cuenta regresiva y apaga al terminar.
-10. **Sonido.** Se activa sonido desde menú y se cambia el volumen con potenciómetro. El LCD muestra porcentaje en tiempo real y la salida PWM cambia.
-11. **Mercado.** Se agrega un producto predefinido con cantidad y luego se consulta la lista.
+1. **Arranque.** El LCD muestra directamente el menú principal.
+2. **Código de seguridad.** Se entra al módulo de seguridad, se intenta activar una alarma con código incorrecto y se valida que no cambie el estado.
+3. **Alarma de acceso.** Se activa desde menú de seguridad con código correcto. Luego se dispara un PIR. El LCD muestra intrusión y el serial reporta el evento.
+4. **Alarma de incendio.** Se activa desde menú con código correcto. Luego se dispara o simula lectura alta del MQ-2. El LCD muestra nivel de humo y el serial reporta alarma de incendio.
+5. **RFID puerta principal.** Se acerca una tarjeta autorizada. El sistema reconoce el UID y enciende el LED de puerta principal durante un intervalo corto.
+6. **RFID garaje.** Se acerca una tarjeta autorizada o se selecciona garaje desde menú. El servo ejecuta apertura/cierre.
+7. **Sala de juegos.** Se acerca tarjeta de hijo. Si tiene cupos, se permite ingreso y se descuenta uno. Si no tiene cupos, se deniega.
+8. **Persistencia.** Se reinicia el sistema y se demuestra que los cupos descontados siguen en EEPROM.
+9. **Dimmer.** Se entra al módulo de iluminación y se varía el potenciómetro. El LED cambia intensidad y el LCD muestra porcentaje.
+10. **Sonido.** En `UART1`, se ejecuta `RADIO ON` y `RADIO VOL 70`. El LCD muestra porcentaje y la salida PWM cambia.
+11. **Horno.** En `UART1`, se ingresa `HORNO ON 180 2`. El sistema muestra cuenta regresiva y apaga al terminar.
+12. **Mercado.** En `UART1`, se agrega un producto predefinido con cantidad y luego se consulta la lista.
 
 ## Criterios de aceptación
 
@@ -55,7 +56,7 @@ El sistema se considera defendible si cumple estas condiciones:
 - RFID diferencia al menos padre/administrador e hijo.
 - Los cupos de juegos sobreviven a un reinicio.
 - El horno se apaga automáticamente sin congelar el sistema.
-- El volumen y el dimmer usan ADC + PWM, no solo texto en LCD.
+- El dimmer usa ADC + PWM y el sonido usa setpoint remoto + PWM.
 - Las simulaciones se declaran explícitamente; no se presentan como actuadores reales.
 
 ## Riesgos

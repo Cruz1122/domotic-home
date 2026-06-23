@@ -19,30 +19,11 @@ La interfaz debe ser simple, consistente y demostrable. No se deben inventar com
 ## Flujo de arranque
 
 ```txt
-DOMOTIC HOME
-Ingrese codigo:
+A Seg B RFID
+C Amb D Serv
 ```
 
-Código correcto:
-
-```txt
-Acceso correcto
-Cargando menu...
-```
-
-Código incorrecto:
-
-```txt
-Codigo invalido
-Intentelo de nuevo
-```
-
-Evento serial:
-
-```txt
-[LOGIN] Codigo invalido
-[LOGIN] Codigo correcto
-```
+No existe login global al arranque. El código administrativo se pide solo al activar o desactivar alarmas.
 
 ## Menú principal
 
@@ -54,8 +35,31 @@ C Amb D Serv
 ## Menú de seguridad
 
 ```txt
-1 Acceso 2 Fuego
-3 Estado * Volver
+1Acc ON 2Fue
+OFF *Volver
+```
+
+## Pantalla de código para alarmas
+
+```txt
+Ingrese codigo:
+___ #OK *Vol
+```
+
+Si el código es incorrecto:
+
+```txt
+Codigo invalido
+*Volver
+```
+
+Eventos seriales esperados:
+
+```txt
+[ALARMA ACCESO] Codigo valido
+[ALARMA ACCESO] Codigo invalido
+[ALARMA INCENDIO] Codigo valido
+[ALARMA INCENDIO] Codigo invalido
 ```
 
 ### Alarma de acceso
@@ -171,15 +175,8 @@ __ #OK
 ## Menú ambiente
 
 ```txt
-1 Luz 2 Temp
-3 Sonido * Volver
-```
-
-### Iluminación
-
-```txt
-Luz PWM
-Nivel: 68%
+1Temp 2Son
+T:22C Luz 68%
 ```
 
 El porcentaje se actualiza leyendo el potenciómetro asignado.
@@ -203,47 +200,26 @@ Como no se definió sensor físico de temperatura, este módulo es simulación d
 ### Sonido
 
 ```txt
-Sonido: ON
-Volumen: 45%
+Sonido ON
+Vol 45% 1ON 2OFF
 ```
 
-El volumen se actualiza en tiempo real desde potenciómetro y debe reflejarse también en PWM.
+El volumen mostrado corresponde al último setpoint remoto recibido por `UART1` con `RADIO VOL <0-100>`.
 
 ## Menú servicios
 
 ```txt
-1 Horno
-2 Mercado
+1Radio 2Horno
+3Merc *Vol
 ```
 
 ### Horno
 
-Captura de temperatura:
+La configuración del horno no se hace por LCD. El menú local solo informa que el control está disponible por `UART1 / Virtual Terminal`.
 
 ```txt
-Temp horno C:
-___ #OK
-```
-
-Captura de tiempo:
-
-```txt
-Tiempo min:
-__ #OK
-```
-
-Operación:
-
-```txt
-Horno 180C
-Restan: 179s
-```
-
-Finalización:
-
-```txt
-Horno OFF
-Tiempo final
+Horno
+Pendiente
 ```
 
 ## Lista de mercado
@@ -258,26 +234,26 @@ Productos predefinidos recomendados:
 
 | Código | Producto |
 |---:|---|
-| 1 | Arroz |
+| 1 | Pan |
 | 2 | Leche |
 | 3 | Huevos |
-| 4 | Pan |
-| 5 | Azucar |
-| 6 | Cafe |
+| 4 | Arroz |
+| 5 | Cafe |
+| 6 | Azucar |
 | 7 | Aceite |
-| 8 | Sal |
+| 8 | Fruta |
 
 Agregar producto:
 
 ```txt
-Prod: 1 Arroz
+Prod: 1 Pan
 Cant: __ #OK
 ```
 
 Consultar:
 
 ```txt
-Arroz x2
+Pan x2
 Leche x1
 ```
 
@@ -285,7 +261,7 @@ Leche x1
 
 | Caso | Mensaje LCD | Evento serial |
 |---|---|---|
-| Código incorrecto | `Codigo invalido` | `[LOGIN] Codigo invalido` |
+| Código incorrecto | `Codigo invalido` | `[ALARMA ACCESO] Codigo invalido` o `[ALARMA INCENDIO] Codigo invalido` |
 | Tarjeta no registrada | `UID no valido` | `[RFID] Tarjeta no registrada` |
 | EEPROM llena | `Memoria llena` | `[EEPROM] Sin slots` |
 | Sin cupos de juego | `Sin cupos` | `[JUEGOS] Acceso denegado` |

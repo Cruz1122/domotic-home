@@ -16,7 +16,7 @@ Servicios funcionales
   seguridad/      alarmas PIR y MQ-2
   accesos/        RFID, usuarios, puerta, garaje y juegos
   confort/        iluminación, temperatura y sonido
-  remoto/         horno y mercado desde UI local
+  remoto/         horno, mercado y comandos por UART1
 
 Interfaz
   ui/             LCD, menús, captura de teclado
@@ -27,7 +27,7 @@ Drivers propios
   rfid_rc522/     comandos MFRC522 mínimos
   lcd/            LCD paralelo
   keypad/         teclado matricial 4x4
-  adc/            potenciómetros y MQ-2
+  adc/            potenciómetro de luz y MQ-2
   pwm/            LED dimmer, sonido, servo si aplica
   timer/          ticks del sistema
   eeprom/         persistencia
@@ -40,12 +40,11 @@ La estructura actual del repositorio ya separa `app`, `common`, `seguridad`, `ac
 
 ## Estados globales de aplicación
 
-Estados recomendados:
+Estados globales mínimos:
 
 ```c
 typedef enum {
     APP_BOOT = 0,
-    APP_LOGIN,
     APP_MAIN_MENU,
     APP_SECURITY_MENU,
     APP_RFID_MENU,
@@ -155,8 +154,8 @@ Formato recomendado:
 
 ```txt
 [BOOT] Sistema iniciado
-[LOGIN] Codigo correcto
-[LOGIN] Codigo invalido
+[ALARMA ACCESO] Codigo valido
+[ALARMA INCENDIO] Codigo invalido
 [ALARMA ACCESO] Intrusion detectada por PIR1
 [ALARMA INCENDIO] Humo sobre umbral: 73%
 [RFID] UID reconocido: tipo=HIJO cupos=2

@@ -4,8 +4,8 @@
 
 - `UART0 / Serial`: debug interno, boot, eventos del sistema y trazas.
 - `UART1 / Serial1`: control remoto / Virtual Terminal.
-- `UART2 / Serial2`: slave de radio.
-- `UART3 / Serial3`: slave de horno.
+
+`UART2 / Serial2` y `UART3 / Serial3` no participan del flujo funcional actual.
 
 Las respuestas de comandos remotos deben salir limpias por `UART1`, con prefijos como `[OK]`, `[ERR]` o `[STATUS]`. Las trazas y mensajes de depuración deben observarse por `UART0`.
 
@@ -24,7 +24,6 @@ Todas las etiquetas se definen como macros en `src/common/Definiciones.h` con el
 | Macro | Etiqueta | Uso |
 |---|---|---|
 | `SER_BOOT` | `[BOOT]` | Arranque del sistema |
-| `SER_LOGIN` | `[LOGIN]` | Resultado de login |
 | `SER_ALARMA` | `[ALARMA ACCESO]` | Intrusión detectada |
 | `SER_FUEGO` | `[ALARMA INCENDIO]` | Humo sobre umbral |
 | `SER_RFID` | `[RFID]` | Lectura de tarjeta |
@@ -64,8 +63,12 @@ UART_Newline();
 
 - `UART_WriteEvent(SER_ALARMA, "Intrusion detectada por PIR1")`
 - `UART_WriteEvent(SER_ALARMA, "Intrusion detectada por PIR2")`
+- `UART_WriteEvent(SER_ALARMA, "Codigo valido")`
+- `UART_WriteEvent(SER_ALARMA, "Codigo invalido")`
 - `UART_WriteEvent(SER_ALARMA, "Alarma desactivada")`
 - `UART_WriteEvent(SER_FUEGO, "Humo sobre umbral: ")` + decimal + `"%"` + Newline
+- `UART_WriteEvent(SER_FUEGO, "Codigo valido")`
+- `UART_WriteEvent(SER_FUEGO, "Codigo invalido")`
 
 ### Accesos
 

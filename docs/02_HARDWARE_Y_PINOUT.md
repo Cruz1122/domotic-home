@@ -15,7 +15,7 @@ La plataforma final del proyecto es ATmega2560 / Arduino Mega 2560. La placa obs
 | PIR HC-SR501 | 2 | Detección de presencia/intrusión |
 | MQ-2 | 1 | Detección de humo/gas |
 | Servomotor | 1 | Puerta de garaje |
-| Potenciómetro | 1 o más | Dimmer y volumen |
+| Potenciómetro | 1 | Dimmer de iluminación |
 | LEDs | Varios | Simulación de actuadores |
 | Relé | Opcional | Simulación de carga/horno/ventilador |
 | UART/USB | 1 | Reporte por serial |
@@ -30,6 +30,15 @@ La plataforma final del proyecto es ATmega2560 / Arduino Mega 2560. La placa obs
 | Ventilador | LED o relé |
 | Habitación de juegos | Estado lógico + LCD + evento serial |
 | Equipo de sonido | PWM proporcional al volumen + LCD |
+
+## UART usada por la aplicación
+
+| Puerto | Pines Mega | Uso |
+|---|---|---|
+| `UART0 / Serial` | D0/D1 | Debug y eventos del sistema |
+| `UART1 / Serial1` | D19/D18 | Control remoto / Virtual Terminal |
+| `UART2 / Serial2` | D17/D16 | Libre, sin uso funcional |
+| `UART3 / Serial3` | D15/D14 | Libre, sin uso funcional |
 
 ## Pinout preliminar sugerido
 
@@ -83,7 +92,6 @@ Fuente de verdad: `docs/06_MAPEO_PINES_ATMEGA2560.md`.
 | PIR 2 | D39 | Entrada digital |
 | MQ-2 AO | A0 | Entrada ADC |
 | Pot dimmer | A1 | Entrada ADC |
-| Pot volumen | A2 | Entrada ADC |
 | LED puerta principal | D6 | PWM o digital |
 | LED iluminación | D7 | PWM |
 | PWM sonido | D8 | PWM |
@@ -140,7 +148,6 @@ Fuente de verdad: `docs/06_MAPEO_PINES_ATMEGA2560.md`.
 
 #define ADC_MQ2                  0
 #define ADC_LIGHT_POT            1
-#define ADC_VOLUME_POT           2
 ```
 
 ## Validación eléctrica mínima
@@ -150,7 +157,7 @@ Antes de integrar software, validar:
 1. LCD imprime texto básico.
 2. Teclado detecta todas las teclas sin rebote grave.
 3. UART transmite mensajes legibles.
-4. ADC lee MQ-2 y potenciómetros.
+4. ADC lee MQ-2 y potenciómetro de iluminación.
 5. PWM varía LED de iluminación.
 6. Servo se mueve con señal correcta y alimentación externa si hace falta.
 7. RC522 responde por SPI.

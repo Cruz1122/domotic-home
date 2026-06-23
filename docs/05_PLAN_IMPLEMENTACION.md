@@ -17,7 +17,7 @@ Entregables:
 Criterios de aceptación:
 
 - El sistema imprime `[BOOT] Sistema iniciado` por serial.
-- El LCD muestra pantalla de login.
+- El LCD muestra el menú principal al arrancar.
 - El teclado detecta dígitos, `A-D`, `*` y `#`.
 - No hay retardos bloqueantes largos.
 
@@ -25,16 +25,16 @@ Criterios de aceptación:
 
 Entregables:
 
-- ADC para MQ-2 y potenciómetros.
+- ADC para MQ-2 y potenciómetro de iluminación.
 - PWM para iluminación.
 - PWM para volumen.
 - Salidas digitales para LEDs/relé.
 
 Criterios de aceptación:
 
-- El potenciómetro cambia porcentaje en LCD.
+- El potenciómetro de iluminación cambia porcentaje en LCD.
 - El LED de iluminación cambia intensidad.
-- El volumen cambia porcentaje y PWM.
+- El volumen remoto cambia porcentaje y PWM.
 - Las salidas digitales responden a comandos de prueba.
 
 ## Fase 3: seguridad
@@ -109,13 +109,14 @@ Entregables:
 
 - Horno con temperatura y tiempo.
 - Temporización no bloqueante.
-- Sonido ON/OFF y volumen.
+- Sonido ON/OFF y volumen por `UART1`.
 - Mercado con productos predefinidos.
 
 Criterios de aceptación:
 
 - El horno se apaga solo al terminar.
 - Mientras el horno está activo, PIR/RFID/teclado siguen funcionando.
+- `RADIO VOL <0-100>` actualiza la salida PWM proporcional.
 - Mercado permite agregar y consultar productos.
 
 ## Fase 8: integración y demo
@@ -164,3 +165,9 @@ Una función está terminada solo si:
 - Maneja error básico.
 - Está integrada al menú si corresponde.
 - Está descrita en la documentación.
+
+## Migraciones cerradas
+
+- Login global eliminado: el código solo se usa para activar o desactivar alarmas.
+- `UART2` y `UART3` fuera del flujo funcional.
+- Volumen del sonido migrado de potenciómetro a `UART1 / RADIO VOL <0-100>`.

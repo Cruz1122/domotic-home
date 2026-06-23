@@ -47,7 +47,7 @@ El alcance fue cerrado para evitar vender una casa domótica ficticia: varios ac
 | Comunicación de diagnóstico | UART/Serial hacia PC |
 | RFID | RC522 por SPI, con driver propio |
 | Alarmas | Intrusión por PIR y fuego/humo por MQ-2 |
-| Servicios remotos | Simulados/locales desde menú LCD + teclado |
+| Servicios remotos | UART1 / Virtual Terminal + resumen local en LCD |
 
 ## Alcance funcional
 
@@ -82,12 +82,12 @@ El alcance fue cerrado para evitar vender una casa domótica ficticia: varios ac
 
 ### Servicios
 
-- Horno configurable desde teclado: temperatura y tiempo.
+- Horno configurable por `UART1`: temperatura y tiempo.
 - Apagado automático del horno al terminar el tiempo programado.
-- Equipo de sonido configurable desde menú.
-- Volumen por potenciómetro, mostrado como porcentaje en LCD en tiempo real.
+- Equipo de sonido controlable por `UART1`.
+- Volumen remoto por `RADIO VOL <0-100>`, mostrado como porcentaje en LCD.
 - Salida PWM proporcional al volumen solicitado.
-- Lista de mercado consultable desde menú LCD.
+- Lista de mercado consultable por `UART1`.
 - Productos de mercado preferiblemente predefinidos, con cantidad configurable.
 
 ## Hardware base
@@ -104,17 +104,17 @@ El alcance fue cerrado para evitar vender una casa domótica ficticia: varios ac
 | LED puerta | Imán/cerradura principal | Simulación |
 | LED iluminación | Dimmer | Simulación física por PWM |
 | LEDs/relé | Calefactor, ventilador, horno | Simulación |
-| Potenciómetro | Dimmer y volumen | Físico |
+| Potenciómetro | Dimmer de iluminación | Físico |
 | UART/USB | UART0 debug + UART1 control remoto | Físico |
 
 ### Contrato serial actual
 
 - `UART0 / Serial` queda reservado para debug interno y eventos del sistema.
 - `UART1 / Serial1` queda reservado para control remoto / Virtual Terminal.
-- `UART2 / Serial2` se usa como slave de radio.
-- `UART3 / Serial3` se usa como slave de horno.
 
-Las respuestas remotas limpias salen por `UART1`. Las trazas internas y el bridge con slaves se observan por `UART0`.
+`UART2 / Serial2` y `UART3 / Serial3` quedan libres, sin uso funcional en la aplicación.
+
+Las respuestas remotas limpias salen por `UART1`. Las trazas internas y eventos del sistema se observan por `UART0`.
 
 Para la lista completa de comandos remotos USART, ver `docs/07_COMANDOS_USART.md`.
 
@@ -140,8 +140,8 @@ src/
     Confort.c                   PWM, ADC, actuadores de confort
 
   remoto/
-    Remoto.h                    Servicios: horno, mercado y operaciones tipo remoto
-    Remoto.c                    Gestión de servicios desde UI local
+    Remoto.h                    Servicios remotos: horno, mercado y parser UART1
+    Remoto.c                    Gestión de comandos remotos por Virtual Terminal
 
   ui/
     UI.h                        Contrato de interfaz LCD/teclado
@@ -206,17 +206,17 @@ C Amb D Serv
 
 La presentación debe ejecutarse como una secuencia integrada:
 
-1. Iniciar sistema y entrar al menú con código.
-2. Activar alarma de acceso, disparar PIR y ver alerta en LCD + serial.
-3. Activar alarma de incendio, disparar MQ-2 y ver alerta en LCD + serial.
+1. Iniciar sistema y verificar menú principal directo.
+2. Intentar activar alarma de acceso con código incorrecto.
+3. Activar alarma de acceso con código correcto, disparar PIR y ver alerta en LCD + serial.
 4. Leer tarjeta RFID autorizada y simular apertura de puerta con LED.
 5. Leer tarjeta autorizada y abrir garaje con servo.
 6. Leer tarjeta de hijo, ingresar a sala de juegos y descontar cupo.
 7. Reiniciar y demostrar que los cupos persisten en EEPROM.
 8. Controlar iluminación con potenciómetro y PWM.
-9. Configurar horno por teclado y ver cuenta regresiva no bloqueante.
-10. Encender sonido, variar volumen por potenciómetro y ver porcentaje en LCD.
-11. Agregar/consultar productos de mercado.
+9. En `UART1`, ejecutar `RADIO ON` y `RADIO VOL 70` y verificar PWM proporcional.
+10. En `UART1`, ejecutar `HORNO ON 180 2` y ver cuenta regresiva no bloqueante.
+11. En `UART1`, agregar/consultar productos de mercado.
 
 ## Reglas de implementación
 

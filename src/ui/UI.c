@@ -141,7 +141,7 @@ static void ui_render(void) {
                 ui_set_lcd("Codigo invalido", "*Volver");
             } else {
                 lcd_line1[0] = '\0';
-                strcpy(lcd_line1, "Codigo:");
+                strcpy(lcd_line1, "Ingrese codigo:");
                 strcpy(lcd_line2, input_buf);
                 strcat(lcd_line2, " #OK *Vol");
                 lcd_dirty = 1;
@@ -371,16 +371,20 @@ static void ui_handle_key(char key) {
                     if (strcmp(input_buf, CODIGO_ADMIN) == 0) {
                         if (sec_code_target == 1) {
                             Seguridad_SetAccessAlarm(!Seguridad_GetAccessState());
-                            UART_WriteEvent(SER_LOGIN, "Alarma acceso alternada");
+                            UART_WriteEvent(SER_ALARMA, "Codigo valido");
                         } else {
                             Seguridad_SetFireAlarm(!Seguridad_GetFireState());
-                            UART_WriteEvent(SER_LOGIN, "Alarma incendio alternada");
+                            UART_WriteEvent(SER_FUEGO, "Codigo valido");
                         }
                         input_clear();
                         screen = UI_SECURITY;
                     } else {
                         sec_code_error = 1;
-                        UART_WriteEvent(SER_LOGIN, "Codigo invalido");
+                        if (sec_code_target == 1) {
+                            UART_WriteEvent(SER_ALARMA, "Codigo invalido");
+                        } else {
+                            UART_WriteEvent(SER_FUEGO, "Codigo invalido");
+                        }
                     }
                 }
             }

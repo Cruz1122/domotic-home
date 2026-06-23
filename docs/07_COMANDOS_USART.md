@@ -10,8 +10,8 @@ Se usa durante la demo para operar el sistema desde un `Virtual Terminal` limpio
 
 - `UART0 / Serial`: debug interno, boot, trazas y eventos del sistema.
 - `UART1 / Serial1`: control remoto del usuario.
-- `UART2 / Serial2`: slave de radio.
-- `UART3 / Serial3`: slave de horno.
+
+`UART2 / Serial2` y `UART3 / Serial3` quedan libres, sin uso funcional en la aplicación.
 
 ## Configuración del terminal remoto
 
@@ -76,14 +76,14 @@ Respuesta esperada:
 
 ```text
 [STATUS][SISTEMA] Comandos:
-[STATUS][SISTEMA] RADIO ON|OFF|STATUS
+[STATUS][SISTEMA] RADIO ON|OFF|VOL <0-100>|STATUS
 [STATUS][SISTEMA] HORNO ON <temp> <min>|OFF|STATUS
 [STATUS][SISTEMA] MERCADO PRODUCTS|ADD <id> <qty>|LIST|CLEAR|STATUS
 ```
 
 ### RADIO ON
 
-Enciende la salida de sonido. El volumen queda controlado solo por el potenciómetro físico.
+Enciende la salida de sonido. Si ya existe un volumen remoto almacenado, el PWM se restaura con ese porcentaje.
 
 Sintaxis:
 
@@ -99,7 +99,7 @@ Respuesta esperada:
 
 ### RADIO OFF
 
-Apaga la salida de sonido. El PWM queda en `0` aunque se mueva el potenciómetro.
+Apaga la salida de sonido. El PWM queda en `0` aunque el último volumen remoto almacenado sea distinto de cero.
 
 Sintaxis:
 
@@ -115,7 +115,7 @@ Respuesta esperada:
 
 ### RADIO STATUS
 
-Consulta si la radio está encendida y el porcentaje de volumen físico actual.
+Consulta si la radio está encendida y el porcentaje de volumen remoto actual.
 
 Sintaxis:
 
@@ -137,7 +137,7 @@ o
 
 ### RADIO VOL
 
-Ya no controla el volumen remotamente. Se conserva solo para responder error explícito.
+Actualiza el setpoint remoto de volumen. El rango válido es `0` a `100`.
 
 Sintaxis:
 
@@ -148,7 +148,17 @@ RADIO VOL 80
 Respuesta esperada:
 
 ```text
-[ERR][RADIO] Volumen solo por potenciometro
+[OK][RADIO] VOL=80
+```
+
+Errores posibles:
+
+```text
+RADIO VOL
+[ERR][RADIO] Uso RADIO VOL <0-100>
+
+RADIO VOL 120
+[ERR][RADIO] Volumen fuera de rango
 ```
 
 ### HORNO ON
@@ -438,7 +448,7 @@ MERCADO LIST
 - boot
 - trazas internas
 - eventos del sistema
-- bridge `TX/RX` hacia `UART2` y `UART3`
+- logs de debug de acciones remotas
 
 ## Archivo relacionado
 
