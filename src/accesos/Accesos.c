@@ -11,6 +11,9 @@
 #include "../servo/servo_pwm.h"
 #include "../uart/uart.h"
 
+#define DOOR_OPEN_MS    2000U
+#define GARAGE_OPEN_MS 10000U
+
 static access_mode_t current_mode;
 static uint8_t       pending_credits;
 static uint8_t       cur_uid_len;        /* longitud del UID en proceso (4/7/10) */
@@ -238,12 +241,12 @@ void Accesos_Init(void) {
 void Accesos_Task(uint32_t now_ms) {
     /* --- Temporizadores no bloqueantes de las salidas --- */
     /* LED de puerta: se apaga solo a los 2 s de la apertura. */
-    if (door_led_active && (uint32_t)(now_ms - door_led_tick) >= 2000U) {
+    if (door_led_active && (uint32_t)(now_ms - door_led_tick) >= DOOR_OPEN_MS) {
         GPIO_WritePin(PIN_DOOR_LED, GPIO_LOW);
         door_led_active = 0;
     }
-    /* Garaje: cierra el servo a los 3 s de la apertura. */
-    if (garage_active && (uint32_t)(now_ms - garage_tick) >= 3000U) {
+    /* Garaje: cierra el servo tras GARAGE_OPEN_MS de apertura. */
+    if (garage_active && (uint32_t)(now_ms - garage_tick) >= GARAGE_OPEN_MS) {
         ServoPwm_Close();
         garage_active = 0;
     }

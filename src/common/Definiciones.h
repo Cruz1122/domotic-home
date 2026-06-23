@@ -86,12 +86,11 @@
 
 /* --- PWM --- */
 #define PIN_PWM_LIGHT              7
-#define PIN_PWM_SOUND              8
+#define PIN_GARAGE_SERVO_LED       8
 #define PIN_PWM_SERVO_GARAGE       9
 #define PIN_PWM_BUZZER_ALARM      10
 
 #define PIN_LIGHT_PWM             PIN_PWM_LIGHT
-#define PIN_SOUND_PWM             PIN_PWM_SOUND
 #define PIN_GARAGE_SERVO          PIN_PWM_SERVO_GARAGE
 #define PIN_ALARM_BUZZER          PIN_PWM_BUZZER_ALARM
 

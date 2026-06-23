@@ -34,6 +34,8 @@ static uint16_t angle_to_pulse(uint8_t degrees) {
 void ServoPwm_Init(void) {
     GPIO_SetPinMode(SERVO_PIN, GPIO_OUT);
     GPIO_WritePin(SERVO_PIN, GPIO_LOW);
+    GPIO_SetPinMode(PIN_GARAGE_SERVO_LED, GPIO_OUT);
+    GPIO_WritePin(PIN_GARAGE_SERVO_LED, GPIO_LOW);
 
     /* Timer1 CTC: TOP=20 ms (50 Hz). La Interrupción COMPA arranca el pulso. */
     TCCR1A = 0;
@@ -62,11 +64,13 @@ void ServoPwm_SetAngle(uint8_t degrees) {
 /* Atajos de apertura/cierre del garaje. */
 void ServoPwm_Open(void) {
     UART_WriteEvent(SER_SISTEMA, "Servo OPEN 90deg");
+    GPIO_WritePin(PIN_GARAGE_SERVO_LED, GPIO_HIGH);
     ServoPwm_SetAngle(90);
 }
 
 void ServoPwm_Close(void) {
     UART_WriteEvent(SER_SISTEMA, "Servo CLOSE 0deg");
+    GPIO_WritePin(PIN_GARAGE_SERVO_LED, GPIO_LOW);
     ServoPwm_SetAngle(0);
 }
 

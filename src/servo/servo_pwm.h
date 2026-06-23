@@ -1,6 +1,7 @@
 /*
  * Módulo: Servo (garaje)
  * Genera PWM de 50 Hz para un servomotor en PIN_PWM_SERVO_GARAGE (pin 9).
+ * El LED en PIN_GARAGE_SERVO_LED (pin 8) indica cuando el garaje está abierto.
  * Se usa para abrir/cerrar el garaje por RFID. Timer1 + ISRs generan el pulso.
  */
 #ifndef SERVO_PWM_H

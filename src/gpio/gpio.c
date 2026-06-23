@@ -29,7 +29,7 @@ static uint8_t gpio_map_pin(uint8_t pin, gpio_map_t *map) {
 
     switch (pin) {
         GPIO_CASE(PIN_LIGHT_PWM,  DDRH, PORTH, PINH, 4);
-        GPIO_CASE(PIN_SOUND_PWM,  DDRH, PORTH, PINH, 5);
+        GPIO_CASE(PIN_GARAGE_SERVO_LED, DDRH, PORTH, PINH, 5);
         GPIO_CASE(PIN_GARAGE_SERVO, DDRH, PORTH, PINH, 6);
         GPIO_CASE(PIN_ALARM_BUZZER, DDRB, PORTB, PINB, 4);
         GPIO_CASE(PIN_FIRE_LED,     DDRB, PORTB, PINB, 5);

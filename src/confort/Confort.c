@@ -1,8 +1,8 @@
 /*
  * Módulo: Confort — implementación
  * - Luz: lee el potenciómetro (ADC_LIGHT_POT) cada 200 ms y aplica PWM al LED.
- * - Sonido: el volumen lo fija UART1 (RADIO VOL); se aplica PWM proporcional.
- *   El potenciómetro de volumen ya no se usa para sonido.
+ * - Sonido: el volumen lo fija UART1 (RADIO VOL); estado lógico en LCD/UART.
+ *   El pin D8 ya no simula volumen: indica movimiento del servo del garaje.
  * - Clima: temperatura simulada con histéresis; calefactor/ventilador son LEDs.
  * Todo es no bloqueante: ADC por arranque/polling y clima por temporización.
  */
@@ -115,11 +115,6 @@ static void Confort_LogTemp(const char *label, uint16_t value) {
     *p++ = 'C';
     *p = '\0';
     UART_WriteEvent(SER_SISTEMA, msg);
-}
-
-/* Aplica el PWM de sonido: duty proporcional al volumen remoto. */
-static void Confort_ApplyVolumePwm(void) {
-    PWM_SetDuty(PIN_SOUND_PWM, Confort_PctToDuty(volume_percent));
 }
 
 /* Aplica el PWM de iluminación según el porcentaje del potenciómetro. */
@@ -262,7 +257,6 @@ void Confort_Init(void) {
     GPIO_WritePin(PIN_HEATER_LED, GPIO_LOW);
     GPIO_WritePin(PIN_FAN_LED, GPIO_LOW);
     PWM_SetDuty(PIN_LIGHT_PWM, 0U);
-    PWM_SetDuty(PIN_SOUND_PWM, 0U);
 
     UART_WriteEvent(SER_SISTEMA, "Confort iniciado");
 }
@@ -311,7 +305,6 @@ void Confort_SetSoundEnabled(uint8_t enabled) {
         sound_reported_enabled = sound_enabled;
         UART_WriteEvent(SER_SONIDO, sound_enabled ? "Sonido ON" : "Sonido OFF");
     }
-    Confort_ApplyVolumePwm();
 }
 
 /* Volumen remoto (0-100) recibido por UART1. Aplica PWM proporcional al sonido. */
@@ -322,7 +315,6 @@ void Confort_SetVolumePercent(uint8_t pct) {
         volume_reported_percent = pct;
         Confort_LogPercent(SER_SONIDO, "Volumen remoto", pct);
     }
-    Confort_ApplyVolumePwm();
 }
 
 uint8_t Confort_IsSoundEnabled(void) {
