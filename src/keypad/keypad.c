@@ -8,206 +8,249 @@
  * Filas:   D34-D37 = PORTC PC3-PC0
  * Columnas: A8-A11  = PORTK PK0-PK3 = PCINT16-19
  *
- * IDLE:
- *   filas    = HIGH (1) -> 5V en D34-D37
- *   columnas = HIGH (1) por pull-up interno (sin cambios)
+ * ARQUITECTURA (herencia del proyecto domotic-home industrial):
  *
- * DETECCION PCINT:
- *   cada keypad_scan() pulsa filas LOW ~3us
- *   si tecla presionada: columna cae a 0 -> PCINT2 dispara
- *   si no: columna queda en 1 -> nada
+ *   Rotacion continua del 0 por filas (tres 1, un 0 rotando).
+ *   PCINT2 detecta cambio en columnas (flanco de pulsacion).
  *
- * ESCANEO (trigger PCINT):
- *   bajar UNA fila a LOW, leer columnas
- *   si columna LOW -> tecla en (fila, columna)
- *   restaurar fila a HIGH, repetir
+ *   Maquina de estados:
+ *     IDLE             - rotacion normal, espera bandera PCINT
+ *     DEBOUNCE_PRESS   - antirrebote 20 ms, luego scan completo
+ *     PRESSED          - tecla reportada, espera liberacion
+ *     DEBOUNCE_RELEASE - antirrebote 20 ms tras liberar
  *
- * RELEASE:
- *   cuando key_down = 1, cada KEYPAD_SCAN_MS se ejecuta
- *   scan_matrix para detectar liberacion.
- *   Si scan_matrix devuelve '\0', key_down se resetea.
+ *   Un solo evento por pulsacion mantenida.
  */
 
-#define ROW_MASK 0x0F    /* PORTC PC0-PC3 */
-#define COL_MASK 0x0F    /* PORTK PK0-PK3 */
+/* =========================================================
+   CONFIGURACION
+   ========================================================= */
 
-#define KEYPAD_DEBOUNCE_MS 25
-#define KEYPAD_SCAN_MS      20
+#define DEBOUNCE_MS             20U
 
-static const uint8_t row_bit[4] = {
-    3, 2, 1, 0
+/* Filas: PC3-PC0 */
+#define ROW_R1                  3U
+#define ROW_R2                  2U
+#define ROW_R3                  1U
+#define ROW_R4                  0U
+#define ROW_MASK      ((1U<<ROW_R1)|(1U<<ROW_R2)|(1U<<ROW_R3)|(1U<<ROW_R4))
+
+/* Columnas: PK0-PK3 = PCINT16-19 */
+#define COL_C1                  0U
+#define COL_C2                  1U
+#define COL_C3                  2U
+#define COL_C4                  3U
+#define COL_MASK      ((1U<<COL_C1)|(1U<<COL_C2)|(1U<<COL_C3)|(1U<<COL_C4))
+
+/* =========================================================
+   MAQUINA DE ESTADOS
+   ========================================================= */
+
+#define KEYPAD_IDLE               0U
+#define KEYPAD_DEBOUNCE_PRESS     1U
+#define KEYPAD_PRESSED            2U
+#define KEYPAD_DEBOUNCE_RELEASE   3U
+
+/* =========================================================
+   DATOS ESTATICOS
+   ========================================================= */
+
+static const uint8_t g_row_patterns[4] = {
+    (uint8_t)(ROW_MASK & ~(1U << ROW_R1)),
+    (uint8_t)(ROW_MASK & ~(1U << ROW_R2)),
+    (uint8_t)(ROW_MASK & ~(1U << ROW_R3)),
+    (uint8_t)(ROW_MASK & ~(1U << ROW_R4))
 };
 
-static const char keymap[4][4] = {
-    { '1', '2', '3', 'A' },
-    { '4', '5', '6', 'B' },
-    { '7', '8', '9', 'C' },
-    { '*', '0', '#', 'D' }
+static const char g_keymap[4][4] = {
+    {'1', '2', '3', 'A'},
+    {'4', '5', '6', 'B'},
+    {'7', '8', '9', 'C'},
+    {'*', '0', '#', 'D'}
 };
 
-static volatile uint8_t keypad_irq = 0;
+static volatile uint8_t g_edge_flag = 0;
 
-static uint8_t  debounce_active = 0;
-static uint32_t debounce_start_ms = 0;
-static uint32_t last_scan_ms = 0;
+static uint8_t  g_state            = KEYPAD_IDLE;
+static uint8_t  g_active_row       = 0;
+static uint8_t  g_key_available    = 0;
+static char     g_key_value        = 0;
 
-static uint8_t key_down = 0;
-static char pending_key = '\0';
+/* Temporizadores (usamos now_ms en Keypad_Scan) */
+static uint32_t g_last_row_ms      = 0;
+static uint32_t g_debounce_start   = 0;
 
+/* =========================================================
+   FUNCIONES INTERNAS
+   ========================================================= */
 
-static void settle(void) {
-    for (volatile uint8_t i = 0; i < 40; i++) {
-        __asm__ __volatile__("nop");
+static void KEYPAD_drive_row(uint8_t row)
+{
+    if (row > 3U) {
+        row = 0;
     }
+    PORTC = (PORTC & ~ROW_MASK) | g_row_patterns[row];
+    g_active_row = row;
 }
 
+/*
+ * Barrido completo: prueba una fila a la vez (LOW), lee columnas.
+ * Guarda y restaura la fila activa para no interferir con la rotacion.
+ */
+static char KEYPAD_scan_key(void)
+{
+    uint8_t saved_row = g_active_row;
+    char found = 0;
 
-/* Pulsa todas las filas LOW ~3us para que PCINT detecte caida */
-static void strobe(void) {
-    PORTC &= ~ROW_MASK;
-    settle();
-    PORTC |= ROW_MASK;
-}
-
-
-/* Escaneo: una fila LOW a la vez, detecta columnas LOW */
-static char scan_matrix(void) {
-    uint8_t row;
-    uint8_t col;
-    uint8_t cols;
-
-    for (row = 0; row < 4; row++) {
-        PORTC &= ~(1 << row_bit[row]);
-        settle();
-
-        cols = PINK & COL_MASK;
-
+    for (uint8_t row = 0; row < 4U; row++) {
+        PORTC = (PORTC & ~ROW_MASK) | g_row_patterns[row];
+        __asm__ __volatile__("nop\n\t""nop\n\t""nop\n\t");
+        uint8_t cols = PINK & COL_MASK;
         if (cols != COL_MASK) {
-            for (col = 0; col < 4; col++) {
-                if ((cols & (1 << col)) == 0) {
-                    PORTC |= (1 << row_bit[row]);
-                    return keymap[row][col];
-                }
+            uint8_t col = 0xFFU;
+            if (!(cols & (1U << COL_C1))) col = 0U;
+            else if (!(cols & (1U << COL_C2))) col = 1U;
+            else if (!(cols & (1U << COL_C3))) col = 2U;
+            else if (!(cols & (1U << COL_C4))) col = 3U;
+            if (col < 4U) {
+                found = g_keymap[row][col];
+                break;
             }
         }
-
-        PORTC |= (1 << row_bit[row]);
     }
 
-    return '\0';
+    KEYPAD_drive_row(saved_row);
+    return found;
 }
 
-
-ISR(PCINT2_vect) {
-    keypad_irq = 1;
+/*
+ * Consume y retorna la bandera de interrupcion de forma atomica.
+ */
+static uint8_t KEYPAD_take_edge(void)
+{
+    uint8_t edge;
+    uint8_t sreg = SREG;
+    cli();
+    edge = g_edge_flag;
+    g_edge_flag = 0;
+    SREG = sreg;
+    return edge;
 }
 
+/* =========================================================
+   INTERRUPCION PCINT2
+   Detecta cambio en columnas PK0-PK3 (PCINT16-19).
+   ========================================================= */
 
-void Keypad_Init(void) {
+ISR(PCINT2_vect)
+{
+    g_edge_flag = 1;
+}
+
+/* =========================================================
+   API PUBLICA
+   ========================================================= */
+
+void Keypad_Init(void)
+{
     uint8_t jtd;
 
-    /* JTAG disable: D34-D37 comparten con JTAG */
-    jtd = MCUCR | (1 << JTD);
+    cli();
+
+    /* JTAG disable: PORTC PC2-PC3 comparten con JTAG */
+    jtd = MCUCR | (1U << JTD);
     MCUCR = jtd;
     MCUCR = jtd;
 
-    /* Filas salida, HIGH reposo */
+    /* Filas como salidas, HIGH en reposo */
     DDRC  |= ROW_MASK;
     PORTC |= ROW_MASK;
 
-    /* Columnas entrada con pull-up (SIN CAMBIOS) */
+    /* Columnas como entradas con pull-up */
     DDRK  &= ~COL_MASK;
     PORTK |= COL_MASK;
 
-    keypad_irq        = 0;
-    debounce_active   = 0;
-    debounce_start_ms = 0;
-    last_scan_ms      = 0;
-    key_down          = 0;
-    pending_key       = '\0';
+    /* Rotacion inicial: fila 0 LOW */
+    g_active_row = 0;
+    KEYPAD_drive_row(0);
 
-    /* PCINT2 en PK0-PK3 */
-    PCIFR  |= (1 << PCIF2);
+    g_state          = KEYPAD_IDLE;
+    g_edge_flag      = 0;
+    g_key_available  = 0;
+    g_key_value      = 0;
+    g_last_row_ms    = 0;
+    g_debounce_start = 0;
+
+    /* PCINT2 en PK0-PK3 (PCINT16-19) */
+    PCIFR  |= (1U << PCIF2);
     PCMSK2 |= COL_MASK;
-    PCICR  |= (1 << PCIE2);
+    PCICR  |= (1U << PCIE2);
 
     sei();
 }
 
+void Keypad_Scan(uint32_t now_ms)
+{
+    uint32_t elapsed;
 
-void Keypad_Scan(uint32_t now_ms) {
-    char key;
-    uint8_t do_scan = 0;
-
-    /*
-     * Strobe: pulsa filas LOW ~3us para que PCINT detecte
-     * si hay tecla presionada. Pasa en CADA llamada.
-     */
-    strobe();
-
-    /*
-     * Tres caminos:
-     * 1) PCINT disparo + key_down = 0  -> tecla nueva, antirrebote
-     * 2) PCINT disparo + key_down = 1  -> tecla repetida, ignorar
-     * 3) key_down = 1 + paso KEYPAD_SCAN_MS -> release check
-     */
-
-    if (keypad_irq) {
-        if (!debounce_active) {
-            debounce_active   = 1;
-            debounce_start_ms = now_ms;
-            return;
-        }
-
-        if ((uint32_t)(now_ms - debounce_start_ms) < KEYPAD_DEBOUNCE_MS) {
-            return;
-        }
-
-        /* Antirrebote completo -> escanear */
-        debounce_active = 0;
-        keypad_irq     = 0;
-        do_scan        = 1;
+    /* ---- Rotacion continua (todos los estados) ---- */
+    if ((uint32_t)(now_ms - g_last_row_ms) >= 2U) {
+        g_last_row_ms = now_ms;
+        uint8_t next = (uint8_t)((g_active_row + 1U) & 0x03U);
+        KEYPAD_drive_row(next);
     }
 
-    /*
-     * Release check: si hay tecla presionada pero no llega PCINT
-     * (porque la soltaron), escanea periodicamente para detectar
-     * la liberacion.
-     */
-    if (!do_scan && key_down) {
-        if ((uint32_t)(now_ms - last_scan_ms) >= KEYPAD_SCAN_MS) {
-            do_scan = 1;
-        }
-    }
+    /* ---- Maquina de estados ---- */
+    switch (g_state) {
+        case KEYPAD_IDLE:
+            if (KEYPAD_take_edge()) {
+                g_debounce_start = now_ms;
+                g_state = KEYPAD_DEBOUNCE_PRESS;
+            }
+            break;
 
-    if (!do_scan) {
-        return;
-    }
+        case KEYPAD_DEBOUNCE_PRESS:
+            elapsed = (uint32_t)(now_ms - g_debounce_start);
+            if (elapsed >= DEBOUNCE_MS) {
+                char key = KEYPAD_scan_key();
+                if (key != 0) {
+                    g_key_value = key;
+                    g_key_available = 1;
+                    g_state = KEYPAD_PRESSED;
+                } else {
+                    g_state = KEYPAD_IDLE;
+                }
+            }
+            break;
 
-    /* Escaneo con PCINT pause para evitar basura */
-    PCICR &= ~(1 << PCIE2);
+        case KEYPAD_PRESSED:
+            if (KEYPAD_scan_key() == 0) {
+                g_debounce_start = now_ms;
+                g_state = KEYPAD_DEBOUNCE_RELEASE;
+            }
+            break;
 
-    key = scan_matrix();
+        case KEYPAD_DEBOUNCE_RELEASE:
+            elapsed = (uint32_t)(now_ms - g_debounce_start);
+            if (elapsed >= DEBOUNCE_MS) {
+                if (KEYPAD_scan_key() == 0) {
+                    g_state = KEYPAD_IDLE;
+                } else {
+                    g_state = KEYPAD_PRESSED;
+                }
+            }
+            break;
 
-    PCIFR |= (1 << PCIF2);
-    PCICR |= (1 << PCIE2);
-
-    last_scan_ms = now_ms;
-
-    if (key == '\0') {
-        key_down = 0;
-        return;
-    }
-
-    if (!key_down) {
-        pending_key = key;
-        key_down    = 1;
+        default:
+            g_state = KEYPAD_IDLE;
+            break;
     }
 }
 
-
-char Keypad_GetKey(void) {
-    char key = pending_key;
-    pending_key = '\0';
+char Keypad_GetKey(void)
+{
+    char key = g_key_value;
+    g_key_value = 0;
+    g_key_available = 0;
     return key;
 }
