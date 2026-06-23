@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+#ifndef F_CPU
+#define F_CPU 16000000UL
+#endif
+
 /* ============================================================
  *  MAPA DE PINES — ATmega2560 / Arduino Mega 2560
  *  Fuente: docs/02_HARDWARE_Y_PINOUT.md
@@ -116,6 +120,16 @@
 #define EEPROM_MARKET_ADDR      0x100
 #define EEPROM_MARKET_MAGIC      'M'
 
+#define UART_BAUD_DEFAULT      9600UL
+
+#define REMOTE_LINE_MAX            64
+#define REMOTE_MAX_TOKENS           5
+
+#define UART_DEBUG_ID               0
+#define UART_REMOTE_ID              1
+#define UART_RADIO_ID               2
+#define UART_OVEN_ID                3
+
 #ifndef DOMOTIC_HOME_ENABLE_DEMO_SEED
 #define DOMOTIC_HOME_ENABLE_DEMO_SEED 0
 #endif
@@ -208,5 +222,15 @@ typedef struct {
 #define SER_EEPROM  "[EEPROM] "
 #define SER_SISTEMA "[SISTEMA] "
 #define SER_TECLADO "[TECLADO] "
+
+#define REMOTE_OK     "[OK]"
+#define REMOTE_ERR    "[ERR]"
+#define REMOTE_STATUS "[STATUS]"
+#define REMOTE_DBG    "[DBG]"
+
+#define MOD_SISTEMA "SISTEMA"
+#define MOD_RADIO   "RADIO"
+#define MOD_HORNO   "HORNO"
+#define MOD_MERCADO "MERCADO"
 
 #endif /* DEFINICIONES_H */

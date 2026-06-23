@@ -329,7 +329,7 @@ static rfid_status_t rf_read_uid_cascade(uint8_t *uid, uint8_t *uid_len, uint32_
     uint8_t len = 0;
 
     for (uint8_t lvl = 0; lvl < 3; lvl++) {
-        uint8_t blk[4];
+        uint8_t blk[4] = {0};
         rfid_status_t st = rf_anticoll_level(levels[lvl], blk, now_ms);
         if (st != RFID_OK) return st;
 

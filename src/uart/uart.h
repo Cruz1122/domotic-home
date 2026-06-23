@@ -7,6 +7,7 @@
 extern "C" {
 #endif
 
+/* UART0 - debug del sistema */
 void UART_Init(uint32_t baud);
 void UART_Task(void);
 void UART_WriteString(const char *str);
@@ -18,7 +19,7 @@ void UART_WriteEvent(const char *tag, const char *msg);
 uint8_t UART_Available(void);
 char    UART_ReadChar(void);
 
-/* UART1 - celular (RX/TX) */
+/* UART1 - control remoto / Virtual Terminal */
 void UART1_Init(uint32_t baud);
 void UART1_WriteChar(char c);
 void UART1_WriteString(const char *str);

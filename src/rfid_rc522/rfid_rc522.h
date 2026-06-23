@@ -30,7 +30,7 @@ extern "C" {
 #define RFID_UART_INJECT  1
 #endif
 
-#ifdef RFID_SIMULATED 1
+#ifdef RFID_SIMULATED
 #if RFID_SIMULATED
 #undef  RFID_USE_RC522
 #define RFID_USE_RC522    0

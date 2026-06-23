@@ -2,7 +2,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-#define TX_BUF_SIZE 128
+#define TX_BUF_SIZE 256
 #define RX_BUF_SIZE 32
 
 /* UART0 */

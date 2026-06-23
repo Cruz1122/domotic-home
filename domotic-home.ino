@@ -27,7 +27,7 @@
 #include "src/test/test_bootstrap.h"
 
 void setup(void) {
-    UART_Init(9600);
+    UART_Init(UART_BAUD_DEFAULT);
     UART_WriteEvent(SER_BOOT, "Sistema iniciado");
     GPIO_Init();
     ADC_Init();

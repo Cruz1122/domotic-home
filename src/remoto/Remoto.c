@@ -6,7 +6,12 @@
 #include "../eeprom/eeprom.h"
 #include <string.h>
 
-#define OVEN_MINUTE_MS 5000UL
+#define OVEN_TEMP_MIN_C      10U
+#define OVEN_TEMP_MAX_C     300U
+#define OVEN_TIME_MIN_MIN     1U
+#define OVEN_TIME_MAX_MIN   180U
+/* Cada minuto logico del horno dura 5 segundos reales en modo demo. */
+#define OVEN_DEMO_MINUTE_MS 5000UL
 
 /* Oven state */
 static uint8_t  oven_running;
@@ -15,8 +20,9 @@ static uint16_t oven_remaining_min;
 static uint32_t oven_last_tick;
 
 /* UART1 command buffer */
-static char   cmd_buf[32];
+static char   cmd_buf[REMOTE_LINE_MAX];
 static uint8_t cmd_len;
+static uint8_t cmd_overflow;
 
 /* UART2/UART3 slave response buffers */
 static char   radio_rx_buf[48];
@@ -24,12 +30,76 @@ static uint8_t radio_rx_len;
 static char   oven_rx_buf[48];
 static uint8_t oven_rx_len;
 
+static void radio_status(void);
+static void oven_status(void);
+static void market_list(void);
+static void market_products(void);
+static void oven_start(uint16_t temp, uint16_t min);
+static void oven_stop(void);
+static void remote_write_u16(uint16_t value);
+static void remote_ok_horno_on(uint16_t temp, uint16_t min);
+
+static void uart0_write_prefix(const char *prefix, const char *module) {
+    UART_WriteString(prefix);
+    UART_WriteChar('[');
+    UART_WriteString(module);
+    UART_WriteString("] ");
+}
+
+static void remote_reply(const char *prefix, const char *module, const char *msg) {
+    UART1_WriteString(prefix);
+    UART1_WriteChar('[');
+    UART1_WriteString(module);
+    UART1_WriteString("] ");
+    UART1_WriteString(msg);
+    UART1_WriteChar('\r');
+    UART1_WriteChar('\n');
+}
+
+static void remote_ok(const char *module, const char *msg) {
+    remote_reply(REMOTE_OK, module, msg);
+}
+
+static void remote_err(const char *module, const char *msg) {
+    remote_reply(REMOTE_ERR, module, msg);
+}
+
+static void remote_status_prefix(const char *module) {
+    UART1_WriteString(REMOTE_STATUS);
+    UART1_WriteChar('[');
+    UART1_WriteString(module);
+    UART1_WriteString("] ");
+}
+
+static void remote_status(const char *module, const char *msg) {
+    remote_reply(REMOTE_STATUS, module, msg);
+}
+
+static void debug_event(const char *module, const char *msg) {
+    uart0_write_prefix(REMOTE_DBG, module);
+    UART_WriteString(msg);
+    UART_Newline();
+}
+
+static void remote_write_u16(uint16_t value) {
+    UART1_WriteDecimal(value);
+}
+
+static void remote_ok_horno_on(uint16_t temp, uint16_t min) {
+    UART1_WriteString(REMOTE_OK "[" MOD_HORNO "] ON TEMP=");
+    remote_write_u16(temp);
+    UART1_WriteString(" MIN=");
+    remote_write_u16(min);
+    UART1_WriteString("\r\n");
+}
+
 /* ---- Forward helpers ---- */
 
 static void forward_radio(const char *cmd) {
     UART2_WriteString(cmd);
     UART2_WriteChar('\n');
-    UART_WriteString("[->RADIO] ");
+    uart0_write_prefix(REMOTE_DBG, MOD_RADIO);
+    UART_WriteString("TX ");
     UART_WriteString(cmd);
     UART_Newline();
 }
@@ -37,97 +107,315 @@ static void forward_radio(const char *cmd) {
 static void forward_horno(const char *cmd) {
     UART3_WriteString(cmd);
     UART3_WriteChar('\n');
-    UART_WriteString("[->HORNO] ");
+    uart0_write_prefix(REMOTE_DBG, MOD_HORNO);
+    UART_WriteString("TX ");
     UART_WriteString(cmd);
     UART_Newline();
 }
 
 /* ---- Internal helpers ---- */
 
-static uint8_t parse_uint8(const char *s) {
-    uint8_t v = 0;
-    while (*s >= '0' && *s <= '9') {
-        v = v * 10 + (uint8_t)(*s - '0');
-        s++;
+static char ascii_upper(char c) {
+    if (c >= 'a' && c <= 'z') {
+        return (char)(c - ('a' - 'A'));
     }
-    return v;
+    return c;
 }
 
-static void remote_reply(const char *msg) {
-    UART1_WriteString(msg);
-    UART1_WriteChar('\r');
-    UART1_WriteChar('\n');
-    UART_WriteString(msg);
-    UART_Newline();
+static uint8_t streq(const char *a, const char *b) {
+    while (*a != '\0' && *b != '\0') {
+        if (*a != *b) {
+            return 0;
+        }
+        a++;
+        b++;
+    }
+    return (uint8_t)((*a == '\0') && (*b == '\0'));
+}
+
+static uint8_t split_tokens(char *line, char **tokens, uint8_t max_tokens) {
+    uint8_t count = 0;
+    char *p = line;
+
+    while (*p != '\0') {
+        while (*p == ' ' || *p == '\t') {
+            *p = '\0';
+            p++;
+        }
+
+        if (*p == '\0') {
+            break;
+        }
+
+        if (count >= max_tokens) {
+            return count;
+        }
+
+        tokens[count++] = p;
+
+        while (*p != '\0' && *p != ' ' && *p != '\t') {
+            *p = ascii_upper(*p);
+            p++;
+        }
+    }
+
+    return count;
+}
+
+static uint8_t parse_u16(const char *s, uint16_t *out) {
+    uint16_t value = 0;
+
+    if (*s == '\0') {
+        return 0;
+    }
+
+    while (*s != '\0') {
+        if (*s < '0' || *s > '9') {
+            return 0;
+        }
+        value = (uint16_t)(value * 10U + (uint16_t)(*s - '0'));
+        s++;
+    }
+
+    *out = value;
+    return 1;
+}
+
+static void handle_help(void) {
+    remote_status(MOD_SISTEMA, "Comandos:");
+    remote_status(MOD_SISTEMA, "RADIO ON|OFF|STATUS");
+    remote_status(MOD_SISTEMA, "HORNO ON <temp> <min>|OFF|STATUS");
+    remote_status(MOD_SISTEMA, "MERCADO PRODUCTS|ADD <id> <qty>|LIST|CLEAR|STATUS");
+}
+
+static void handle_radio(char **tok, uint8_t n) {
+    if (n < 2) {
+        remote_err(MOD_RADIO, "Falta accion");
+        return;
+    }
+
+    if (streq(tok[1], "ON")) {
+        if (n != 2) {
+            remote_err(MOD_RADIO, "Argumentos invalidos");
+            return;
+        }
+        Confort_SetSoundEnabled(1);
+        remote_ok(MOD_RADIO, "ON");
+        forward_radio("RADIO ON");
+        return;
+    }
+
+    if (streq(tok[1], "OFF")) {
+        if (n != 2) {
+            remote_err(MOD_RADIO, "Argumentos invalidos");
+            return;
+        }
+        Confort_SetSoundEnabled(0);
+        remote_ok(MOD_RADIO, "OFF");
+        forward_radio("RADIO OFF");
+        return;
+    }
+
+    if (streq(tok[1], "STATUS")) {
+        if (n != 2) {
+            remote_err(MOD_RADIO, "Argumentos invalidos");
+            return;
+        }
+        radio_status();
+        forward_radio("RADIO STATUS");
+        return;
+    }
+
+    if (streq(tok[1], "VOL")) {
+        (void)n;
+        remote_err(MOD_RADIO, "Volumen solo por potenciometro");
+        return;
+    }
+
+    remote_err(MOD_RADIO, "Accion desconocida");
+}
+
+static void handle_horno(char **tok, uint8_t n) {
+    uint16_t temp = 0;
+    uint16_t min = 0;
+
+    if (n < 2) {
+        remote_err(MOD_HORNO, "Falta accion");
+        return;
+    }
+
+    if (streq(tok[1], "ON")) {
+        if (n != 4) {
+            remote_err(MOD_HORNO, "Uso HORNO ON <temp> <min>");
+            return;
+        }
+        if (!parse_u16(tok[2], &temp) || !parse_u16(tok[3], &min)) {
+            remote_err(MOD_HORNO, "Parametros invalidos");
+            return;
+        }
+        if (temp < OVEN_TEMP_MIN_C || temp > OVEN_TEMP_MAX_C) {
+            remote_err(MOD_HORNO, "Temp fuera de rango");
+            return;
+        }
+        if (min < OVEN_TIME_MIN_MIN || min > OVEN_TIME_MAX_MIN) {
+            remote_err(MOD_HORNO, "Tiempo fuera de rango");
+            return;
+        }
+        oven_start(temp, min);
+        remote_ok_horno_on(temp, min);
+        UART3_WriteString("HORNO ON ");
+        UART3_WriteDecimal(temp);
+        UART3_WriteChar(' ');
+        UART3_WriteDecimal(min);
+        UART3_WriteChar('\n');
+        uart0_write_prefix(REMOTE_DBG, MOD_HORNO);
+        UART_WriteString("TX HORNO ON ");
+        UART_WriteDecimal(temp);
+        UART_WriteChar(' ');
+        UART_WriteDecimal(min);
+        UART_Newline();
+        return;
+    }
+
+    if (streq(tok[1], "OFF")) {
+        if (n != 2) {
+            remote_err(MOD_HORNO, "Argumentos invalidos");
+            return;
+        }
+        if (oven_running) {
+            oven_stop();
+        }
+        remote_ok(MOD_HORNO, "OFF");
+        forward_horno("HORNO OFF");
+        return;
+    }
+
+    if (streq(tok[1], "STATUS")) {
+        if (n != 2) {
+            remote_err(MOD_HORNO, "Argumentos invalidos");
+            return;
+        }
+        oven_status();
+        forward_horno("HORNO STATUS");
+        return;
+    }
+
+    remote_err(MOD_HORNO, "Accion desconocida");
+}
+
+static void handle_market(char **tok, uint8_t n) {
+    uint16_t product_id = 0;
+    uint16_t quantity = 0;
+    market_item_t item;
+
+    if (n < 2) {
+        remote_err(MOD_MERCADO, "Falta accion");
+        return;
+    }
+
+    if (streq(tok[1], "PRODUCTS")) {
+        if (n != 2) {
+            remote_err(MOD_MERCADO, "Argumentos invalidos");
+            return;
+        }
+        market_products();
+        return;
+    }
+
+    if (streq(tok[1], "ADD")) {
+        if (n != 4) {
+            remote_err(MOD_MERCADO, "Uso MERCADO ADD <id> <qty>");
+            return;
+        }
+        if (!parse_u16(tok[2], &product_id) || product_id < 1U || product_id > MARKET_PRODUCT_COUNT) {
+            remote_err(MOD_MERCADO, "Producto invalido");
+            return;
+        }
+        if (!parse_u16(tok[3], &quantity) || quantity < 1U || quantity > 99U) {
+            remote_err(MOD_MERCADO, "Cantidad invalida");
+            return;
+        }
+        if (!Remoto_MarketAdd((uint8_t)product_id, (uint8_t)quantity)) {
+            remote_err(MOD_MERCADO, "No se pudo agregar");
+            return;
+        }
+
+        for (uint8_t i = 0; i < Remoto_MarketGetCount(); i++) {
+            if (Remoto_MarketGetItem(i, &item) && item.product_id == (uint8_t)product_id) {
+                UART1_WriteString(REMOTE_OK "[" MOD_MERCADO "] ");
+                UART1_WriteString(Remoto_MarketGetProductName(item.product_id));
+                UART1_WriteString(" x");
+                UART1_WriteDecimal(item.quantity);
+                UART1_WriteString("\r\n");
+                return;
+            }
+        }
+
+        remote_ok(MOD_MERCADO, "Item agregado");
+        return;
+    }
+
+    if (streq(tok[1], "LIST") || streq(tok[1], "STATUS")) {
+        if (n != 2) {
+            remote_err(MOD_MERCADO, "Argumentos invalidos");
+            return;
+        }
+        market_list();
+        return;
+    }
+
+    if (streq(tok[1], "CLEAR")) {
+        if (n != 2) {
+            remote_err(MOD_MERCADO, "Argumentos invalidos");
+            return;
+        }
+        Remoto_MarketClear();
+        remote_ok(MOD_MERCADO, "Lista limpia");
+        return;
+    }
+
+    remote_err(MOD_MERCADO, "Accion desconocida");
 }
 
 static void radio_status(void) {
-    char buf[32];
-    uint8_t i = 0;
-
-    buf[i++] = '['; buf[i++] = 'S'; buf[i++] = 'T'; buf[i++] = 'A';
-    buf[i++] = 'T'; buf[i++] = 'U'; buf[i++] = 'S'; buf[i++] = ']';
-    buf[i++] = '['; buf[i++] = 'R'; buf[i++] = 'A'; buf[i++] = 'D';
-    buf[i++] = 'I'; buf[i++] = 'O'; buf[i++] = ']'; buf[i++] = ' ';
-
+    remote_status_prefix(MOD_RADIO);
     if (Confort_IsSoundEnabled()) {
-        buf[i++] = 'O'; buf[i++] = 'N';
+        UART1_WriteString("ON");
     } else {
-        buf[i++] = 'O'; buf[i++] = 'F'; buf[i++] = 'F';
+        UART1_WriteString("OFF");
     }
-    buf[i++] = ' ';
-    buf[i++] = 'V'; buf[i++] = 'O'; buf[i++] = 'L'; buf[i++] = '=';
+    UART1_WriteString(" VOL=");
 
-    uint8_t pct = Confort_GetVolumePercent();
-    if (pct >= 100) {
-        buf[i++] = '1'; buf[i++] = '0'; buf[i++] = '0';
-    } else if (pct >= 10) {
-        buf[i++] = (char)('0' + pct / 10);
-        buf[i++] = (char)('0' + pct % 10);
-    } else {
-        buf[i++] = (char)('0' + pct);
-    }
-    buf[i] = '\0';
-
-    remote_reply(buf);
+    UART1_WriteDecimal(Confort_GetVolumePercent());
+    UART1_WriteChar('\r');
+    UART1_WriteChar('\n');
 }
 
 static void oven_status(void) {
-    char buf[48];
-    uint8_t i = 0;
     uint16_t t, m;
 
-    buf[i++] = '['; buf[i++] = 'S'; buf[i++] = 'T'; buf[i++] = 'A';
-    buf[i++] = 'T'; buf[i++] = 'U'; buf[i++] = 'S'; buf[i++] = ']';
-    buf[i++] = '['; buf[i++] = 'H'; buf[i++] = 'O'; buf[i++] = 'R';
-    buf[i++] = 'N'; buf[i++] = 'O'; buf[i++] = ']'; buf[i++] = ' ';
+    remote_status_prefix(MOD_HORNO);
 
     if (oven_running) {
-        buf[i++] = 'O'; buf[i++] = 'N';
+        UART1_WriteString("ON");
     } else {
-        buf[i++] = 'O'; buf[i++] = 'F'; buf[i++] = 'F';
+        UART1_WriteString("OFF");
     }
-    buf[i++] = ' ';
-    buf[i++] = 'T'; buf[i++] = 'E'; buf[i++] = 'M'; buf[i++] = 'P'; buf[i++] = '=';
+    UART1_WriteString(" TEMP=");
 
     t = oven_target_temp;
-    if (t >= 100) { buf[i++] = (char)('0' + t / 100); t = (uint16_t)(t % 100); }
-    if (oven_target_temp >= 10) { buf[i++] = (char)('0' + t / 10); t = (uint16_t)(t % 10); }
-    buf[i++] = (char)('0' + t);
+    if (t >= 100) { UART1_WriteChar((char)('0' + t / 100)); t = (uint16_t)(t % 100); }
+    if (oven_target_temp >= 10) { UART1_WriteChar((char)('0' + t / 10)); t = (uint16_t)(t % 10); }
+    UART1_WriteChar((char)('0' + t));
 
-    buf[i++] = ' ';
-    buf[i++] = 'R'; buf[i++] = 'E'; buf[i++] = 'S'; buf[i++] = 'T';
-    buf[i++] = 'A'; buf[i++] = 'N'; buf[i++] = '=';
+    UART1_WriteString(" RESTANTE=");
 
     m = oven_remaining_min;
-    if (m >= 100) { buf[i++] = (char)('0' + m / 100); m = (uint16_t)(m % 100); }
-    if (oven_remaining_min >= 10) { buf[i++] = (char)('0' + m / 10); m = (uint16_t)(m % 10); }
-    buf[i++] = (char)('0' + m);
+    if (m >= 100) { UART1_WriteChar((char)('0' + m / 100)); m = (uint16_t)(m % 100); }
+    if (oven_remaining_min >= 10) { UART1_WriteChar((char)('0' + m / 10)); m = (uint16_t)(m % 10); }
+    UART1_WriteChar((char)('0' + m));
 
-    buf[i++] = 'm'; buf[i++] = 'i'; buf[i++] = 'n';
-    buf[i] = '\0';
-
-    remote_reply(buf);
+    UART1_WriteString("min\r\n");
 }
 
 /* ---- Market list ---- */
@@ -135,20 +423,16 @@ static void oven_status(void) {
 static void market_save(void);
 static void market_load(void);
 
-/* Consulta remota de la lista de mercado por UART1 (espejo en UART0). */
+/* Consulta remota de la lista de mercado por UART1. */
 static void market_list(void) {
     uint8_t count = Remoto_MarketGetCount();
 
-    UART1_WriteString("[STATUS][MERCADO] ");
+    remote_status_prefix(MOD_MERCADO);
     UART1_WriteDecimal(count);
     UART1_WriteString(" items\r\n");
-    UART_WriteString("[STATUS][MERCADO] ");
-    UART_WriteDecimal(count);
-    UART_WriteString(" items");
-    UART_Newline();
 
     if (count == 0) {
-        remote_reply("[MERCADO] Lista vacia");
+        remote_status(MOD_MERCADO, "Lista vacia");
         return;
     }
 
@@ -159,7 +443,7 @@ static void market_list(void) {
         name = Remoto_MarketGetProductName(item.product_id);
         if (name == 0) name = "?";
 
-        UART1_WriteString("[MERCADO] ");
+        remote_status_prefix(MOD_MERCADO);
         UART1_WriteDecimal((uint32_t)(i + 1));
         UART1_WriteString(") ");
         UART1_WriteString(name);
@@ -167,14 +451,22 @@ static void market_list(void) {
         UART1_WriteDecimal(item.quantity);
         UART1_WriteChar('\r');
         UART1_WriteChar('\n');
+    }
+}
 
-        UART_WriteString("[MERCADO] ");
-        UART_WriteDecimal((uint32_t)(i + 1));
-        UART_WriteString(") ");
-        UART_WriteString(name);
-        UART_WriteString(" x");
-        UART_WriteDecimal(item.quantity);
-        UART_Newline();
+static void market_products(void) {
+    remote_status(MOD_MERCADO, "Productos:");
+
+    for (uint8_t id = 1; id <= MARKET_PRODUCT_COUNT; id++) {
+        const char *name = Remoto_MarketGetProductName(id);
+        if (name == 0) {
+            name = "?";
+        }
+        remote_status_prefix(MOD_MERCADO);
+        UART1_WriteDecimal(id);
+        UART1_WriteChar(' ');
+        UART1_WriteString(name);
+        UART1_WriteString("\r\n");
     }
 }
 
@@ -248,78 +540,37 @@ static void oven_stop(void) {
 /* ---- Command parser ---- */
 
 static void process_command(void) {
+    char *tokens[REMOTE_MAX_TOKENS];
+    uint8_t count;
+
     cmd_buf[cmd_len] = '\0';
+    count = split_tokens(cmd_buf, tokens, REMOTE_MAX_TOKENS);
 
-    if (strcmp(cmd_buf, "HELP") == 0) {
-        remote_reply("Comandos: RADIO ON/OFF/VOL n/STATUS | HORNO ON temp min/OFF/STATUS | MERCADO LIST");
-
-    } else if (strcmp(cmd_buf, "RADIO ON") == 0) {
-        Confort_SetSoundEnabled(1);
-        remote_reply("[OK][RADIO] ON");
-        forward_radio(cmd_buf);
-
-    } else if (strcmp(cmd_buf, "RADIO OFF") == 0) {
-        Confort_SetSoundEnabled(0);
-        remote_reply("[OK][RADIO] OFF");
-        forward_radio(cmd_buf);
-
-    } else if (strncmp(cmd_buf, "RADIO VOL ", 10) == 0) {
-        uint8_t pct = parse_uint8(cmd_buf + 10);
-        if (pct <= 100) {
-            Confort_SetSoundEnabled(1);
-            Confort_SetVolumePercent(pct);
-            UART1_WriteString("[OK][RADIO] VOL=");
-            UART1_WriteDecimal(pct);
-            UART1_WriteChar('\r');
-            UART1_WriteChar('\n');
-            UART_WriteString("[OK][RADIO] VOL=");
-            UART_WriteDecimal(pct);
-            UART_Newline();
-            forward_radio(cmd_buf);
-        } else {
-            remote_reply("[ERR][RADIO] Volumen fuera de rango 0-100");
-        }
-
-    } else if (strcmp(cmd_buf, "RADIO STATUS") == 0) {
-        radio_status();
-        forward_radio(cmd_buf);
-
-    } else if (strncmp(cmd_buf, "HORNO ON ", 9) == 0) {
-        const char *rest = cmd_buf + 9;
-        uint16_t temp = parse_uint8(rest);
-
-        while (*rest >= '0' && *rest <= '9') rest++;
-        while (*rest == ' ') rest++;
-
-        uint16_t min = parse_uint8(rest);
-
-        if (temp >= 10 && temp <= 300 && min >= 1 && min <= 180) {
-            oven_start(temp, min);
-            remote_reply("[OK][HORNO] ON");
-            oven_status();
-            forward_horno(cmd_buf);
-        } else {
-            remote_reply("[ERR][HORNO] Use: HORNO ON temp min, temp 10-300, min 1-180");
-        }
-
-    } else if (strcmp(cmd_buf, "HORNO OFF") == 0) {
-        if (oven_running) {
-            oven_stop();
-        }
-        remote_reply("[OK][HORNO] OFF");
-        forward_horno(cmd_buf);
-
-    } else if (strcmp(cmd_buf, "HORNO STATUS") == 0) {
-        oven_status();
-        forward_horno(cmd_buf);
-
-    } else if (strcmp(cmd_buf, "MERCADO LIST") == 0 ||
-               strcmp(cmd_buf, "MERCADO STATUS") == 0) {
-        market_list();
-
-    } else {
-        remote_reply("[ERR] Comando desconocido. Escriba HELP");
+    if (count == 0) {
+        return;
     }
+
+    if (streq(tokens[0], "HELP")) {
+        handle_help();
+        return;
+    }
+
+    if (streq(tokens[0], "RADIO")) {
+        handle_radio(tokens, count);
+        return;
+    }
+
+    if (streq(tokens[0], "HORNO")) {
+        handle_horno(tokens, count);
+        return;
+    }
+
+    if (streq(tokens[0], "MERCADO")) {
+        handle_market(tokens, count);
+        return;
+    }
+
+    remote_err(MOD_SISTEMA, "Comando desconocido. Escriba HELP");
 }
 
 /* ---- Market EEPROM persistence ---- */
@@ -352,11 +603,12 @@ static void market_load(void) {
 /* ---- Public API ---- */
 
 void Remoto_Init(void) {
-    UART1_Init(9600);
-    UART2_Init(9600);
-    UART3_Init(9600);
+    UART1_Init(UART_BAUD_DEFAULT);
+    UART2_Init(UART_BAUD_DEFAULT);
+    UART3_Init(UART_BAUD_DEFAULT);
     oven_running = 0;
     cmd_len = 0;
+    cmd_overflow = 0;
     radio_rx_len = 0;
     oven_rx_len = 0;
     market_count = 0;
@@ -364,8 +616,8 @@ void Remoto_Init(void) {
     UART_WriteEvent(SER_EEPROM, "Lista mercado cargada");
     GPIO_SetPinMode(PIN_OVEN_LED, GPIO_OUT);
     GPIO_WritePin(PIN_OVEN_LED, GPIO_LOW);
-    UART1_WriteEvent(SER_SISTEMA, "Canal remoto listo. Escriba HELP");
-    UART_WriteEvent(SER_SISTEMA, "Remoto iniciado por UART1. Slaves UART2(Radio) UART3(Horno) listos");
+    remote_ok(MOD_SISTEMA, "Canal remoto listo");
+    debug_event(MOD_SISTEMA, "Remoto iniciado por UART1. Slaves UART2(Radio) UART3(Horno) listos");
 }
 
 void Remoto_Task(uint32_t now_ms) {
@@ -373,13 +625,19 @@ void Remoto_Task(uint32_t now_ms) {
     while (UART1_Available()) {
         char c = UART1_ReadChar();
         if (c == '\n' || c == '\r') {
-            if (cmd_len > 0) {
+            if (cmd_overflow) {
+                cmd_len = 0;
+                cmd_overflow = 0;
+                remote_err(MOD_SISTEMA, "Linea demasiado larga");
+            } else if (cmd_len > 0) {
                 process_command();
                 cmd_len = 0;
             }
         } else {
             if (cmd_len < sizeof(cmd_buf) - 1) {
                 cmd_buf[cmd_len++] = c;
+            } else {
+                cmd_overflow = 1;
             }
         }
     }
@@ -390,13 +648,10 @@ void Remoto_Task(uint32_t now_ms) {
         if (c == '\n' || c == '\r') {
             if (radio_rx_len > 0) {
                 radio_rx_buf[radio_rx_len] = '\0';
-                UART_WriteString("[RADIO->] ");
+                uart0_write_prefix(REMOTE_DBG, MOD_RADIO);
+                UART_WriteString("RX ");
                 UART_WriteString(radio_rx_buf);
                 UART_Newline();
-                UART1_WriteString("[RADIO->] ");
-                UART1_WriteString(radio_rx_buf);
-                UART1_WriteChar('\r');
-                UART1_WriteChar('\n');
                 radio_rx_len = 0;
             }
         } else {
@@ -412,13 +667,10 @@ void Remoto_Task(uint32_t now_ms) {
         if (c == '\n' || c == '\r') {
             if (oven_rx_len > 0) {
                 oven_rx_buf[oven_rx_len] = '\0';
-                UART_WriteString("[HORNO->] ");
+                uart0_write_prefix(REMOTE_DBG, MOD_HORNO);
+                UART_WriteString("RX ");
                 UART_WriteString(oven_rx_buf);
                 UART_Newline();
-                UART1_WriteString("[HORNO->] ");
-                UART1_WriteString(oven_rx_buf);
-                UART1_WriteChar('\r');
-                UART1_WriteChar('\n');
                 oven_rx_len = 0;
             }
         } else {
@@ -430,14 +682,14 @@ void Remoto_Task(uint32_t now_ms) {
 
     /* Oven countdown */
     if (oven_running) {
-        if (Timer_Expired(oven_last_tick, OVEN_MINUTE_MS)) {
+        if (Timer_Expired(oven_last_tick, OVEN_DEMO_MINUTE_MS)) {
             oven_last_tick = now_ms;
             if (oven_remaining_min > 0) {
                 oven_remaining_min--;
             }
             if (oven_remaining_min == 0) {
                 oven_stop();
-                remote_reply("[OK][HORNO] Finalizado");
+                remote_ok(MOD_HORNO, "Finalizado");
             } else {
                 oven_status();
             }

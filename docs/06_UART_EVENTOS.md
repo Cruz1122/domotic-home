@@ -1,5 +1,16 @@
 # Reporte de eventos por UART
 
+## Roles de puertos
+
+- `UART0 / Serial`: debug interno, boot, eventos del sistema y trazas.
+- `UART1 / Serial1`: control remoto / Virtual Terminal.
+- `UART2 / Serial2`: slave de radio.
+- `UART3 / Serial3`: slave de horno.
+
+Las respuestas de comandos remotos deben salir limpias por `UART1`, con prefijos como `[OK]`, `[ERR]` o `[STATUS]`. Las trazas y mensajes de depuración deben observarse por `UART0`.
+
+Para el detalle completo de comandos remotos disponibles, ver `docs/07_COMANDOS_USART.md`.
+
 ## Formato canónico
 
 ```
@@ -92,7 +103,7 @@ placa física (RC522 presente) y en Proteus (sin RC522: se teclea el UID).
 - En el arranque, si no se detecta el RC522, se reporta
   `[RFID] RC522 ausente, lectura por UART habilitada` y queda solo la
   inyección por UART.
-- Para simular una tarjeta: en el Virtual Terminal de la consola, escribir el
+- Para simular una tarjeta: en el terminal asociado a la consola debug (`UART0`), escribir el
   UID como pares hexadecimales (4, 7 o 10 bytes — longitudes ISO14443A) y Enter.
 
 ```

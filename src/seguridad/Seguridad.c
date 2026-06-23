@@ -169,6 +169,8 @@ static void check_smoke(uint32_t now_ms) {
     uint16_t adc_val = 0;
     uint8_t  valid   = 0;
 
+    (void)now_ms;
+
     /* Resolver conversion pendiente */
     if (adc_pending) {
         if (ADC_Poll(&adc_val)) {

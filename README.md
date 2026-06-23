@@ -105,7 +105,18 @@ El alcance fue cerrado para evitar vender una casa domótica ficticia: varios ac
 | LED iluminación | Dimmer | Simulación física por PWM |
 | LEDs/relé | Calefactor, ventilador, horno | Simulación |
 | Potenciómetro | Dimmer y volumen | Físico |
-| UART/USB | Reporte serial | Físico |
+| UART/USB | UART0 debug + UART1 control remoto | Físico |
+
+### Contrato serial actual
+
+- `UART0 / Serial` queda reservado para debug interno y eventos del sistema.
+- `UART1 / Serial1` queda reservado para control remoto / Virtual Terminal.
+- `UART2 / Serial2` se usa como slave de radio.
+- `UART3 / Serial3` se usa como slave de horno.
+
+Las respuestas remotas limpias salen por `UART1`. Las trazas internas y el bridge con slaves se observan por `UART0`.
+
+Para la lista completa de comandos remotos USART, ver `docs/07_COMANDOS_USART.md`.
 
 ## Estructura del repositorio
 
