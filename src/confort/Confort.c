@@ -1,3 +1,11 @@
+/*
+ * Módulo: Confort — implementación
+ * - Luz: lee el potenciómetro (ADC_LIGHT_POT) cada 200 ms y aplica PWM al LED.
+ * - Sonido: el volumen lo fija UART1 (RADIO VOL); se aplica PWM proporcional.
+ *   El potenciómetro de volumen ya no se usa para sonido.
+ * - Clima: temperatura simulada con histéresis; calefactor/ventilador son LEDs.
+ * Todo es no bloqueante: ADC por arranque/polling y clima por temporización.
+ */
 #include "Confort.h"
 #include "../gpio/gpio.h"
 #include "../adc/adc.h"
@@ -9,7 +17,7 @@
 #define TEMP_INTERVAL_MS    50
 #define TEMP_DEFAULT         22
 #define TEMP_AMBIENT         20
-#define TEMP_HYSTERESIS_C     1
+#define TEMP_HYSTERESIS_C     1   /* banda de histéresis para evitar oscilación */
 
 typedef enum {
     ADC_REQ_NONE = 0,
@@ -69,6 +77,7 @@ static char *Confort_AppendU16(char *dst, uint16_t value) {
     return dst;
 }
 
+/* Convierte un porcentaje (0-100) en duty PWM (0-255). */
 static uint8_t Confort_PctToDuty(uint8_t pct) {
     if (pct > 100U) {
         pct = 100U;
@@ -104,15 +113,19 @@ static void Confort_LogTemp(const char *label, uint16_t value) {
     UART_WriteEvent(SER_SISTEMA, msg);
 }
 
+/* Aplica el PWM de sonido: duty proporcional al volumen remoto, o 0 si apagado. */
 static void Confort_ApplyVolumePwm(void) {
     uint8_t duty = sound_enabled ? Confort_PctToDuty(volume_percent) : 0U;
     PWM_SetDuty(PIN_SOUND_PWM, duty);
 }
 
+/* Aplica el PWM de iluminación según el porcentaje del potenciómetro. */
 static void Confort_ApplyLightPwm(void) {
     PWM_SetDuty(PIN_LIGHT_PWM, Confort_PctToDuty(light_percent));
 }
 
+/* Enciende calefactor o ventilador (LEDs), nunca ambos a la vez.
+ * Solo loguea por UART0 cuando cambia el estado para no ensuciar el log. */
 static void Confort_ApplyClimateOutputs(void) {
     uint8_t heater = heater_active ? 1U : 0U;
     uint8_t fan = fan_active ? 1U : 0U;
@@ -137,6 +150,8 @@ static void Confort_ApplyClimateOutputs(void) {
     }
 }
 
+/* Avanza la temperatura simulada cada TEMP_INTERVAL_MS según el actuador activo
+ * y dispara calefactor/ventilador por histéresis cuando está todo inactivo. */
 static void Confort_AdvanceClimate(uint32_t now_ms) {
     if (!Timer_Expired(temp_tick, TEMP_INTERVAL_MS)) {
         return;
@@ -174,6 +189,7 @@ static void Confort_AdvanceClimate(uint32_t now_ms) {
     }
 }
 
+/* Recalcula el actuador al cambiar la temperatura objetivo (sin esperar al tick). */
 static void Confort_ReevaluateClimate(void) {
     if (heater_active != 0U && current_temp_c >= target_temp_c) {
         heater_active = 0U;
@@ -193,6 +209,8 @@ static void Confort_ReevaluateClimate(void) {
     Confort_ApplyClimateOutputs();
 }
 
+/* Procesa una muestra ADC: solo el potenciómetro de iluminación actualiza la luz.
+ * El potenciómetro de volumen ya no se lee aquí. */
 static void Confort_ProcessAdcSample(uint8_t channel, uint16_t raw) {
     uint8_t pct = (uint8_t)(((uint32_t)raw * 100U) / 1023U);
 
@@ -208,6 +226,8 @@ static void Confort_ProcessAdcSample(uint8_t channel, uint16_t raw) {
 
 }
 
+/* Servicio ADC no bloqueante: resuelve la conversión pendiente y arranca la del
+ * potenciómetro de luz cuando toca el intervalo. */
 static void Confort_ServiceAdc(uint32_t now_ms) {
     uint16_t raw = 0U;
 
@@ -289,6 +309,7 @@ void Confort_SetSoundEnabled(uint8_t enabled) {
     Confort_ApplyVolumePwm();
 }
 
+/* Volumen remoto (0-100) recibido por UART1. Aplica PWM proporcional al sonido. */
 void Confort_SetVolumePercent(uint8_t pct) {
     if (pct > 100U) pct = 100U;
     if (volume_percent != pct) {

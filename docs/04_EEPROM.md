@@ -14,26 +14,21 @@ La EEPROM es limitada y tiene ciclos de escritura finitos. No se debe escribir c
 EEPROM (4 KB — ATmega2560)
 0x000  Header                    5 B
 0x005-0x00F  Padding            11 B
-0x010  Usuario 0                16 B
-0x020  Usuario 1                16 B
-0x030  Usuario 2                16 B
-0x040  Usuario 3                16 B
-0x050  Usuario 4                16 B
-0x060  Usuario 5                16 B
-0x070  Usuario 6                16 B
-0x080  Usuario 7                16 B
-0x090  Usuario 8                16 B
-0x0A0  Usuario 9                16 B
-0x0B0-0x0FF  Reservado          80 B
+0x010  Usuario 0                sizeof(user_record_t)
+0x010 + N * sizeof(user_record_t)  Usuario N
+...    Tabla de hasta 10 usuarios
 0x100  Lista de mercado (futuro)
 ```
+
+En el firmware actual para AVR, `user_record_t` ocupa `22` bytes porque no hay
+padding relevante entre campos de 8 bits y `char`.
 
 ## Header (dirección 0x000)
 
 ```c
 #define EEPROM_MAGIC_0  'D'
 #define EEPROM_MAGIC_1  'H'
-#define EEPROM_VERSION  1
+#define EEPROM_VERSION  3
 
 typedef struct {
     uint8_t magic0;       // 0x00  'D'
@@ -46,13 +41,13 @@ typedef struct {
 
 **Validación:**
 - `magic0 == 'D'` y `magic1 == 'H'`
-- `version == EEPROM_VERSION` (1)
+- `version == EEPROM_VERSION` (3)
 - `checksum` calculado como `magic0 ^ magic1 ^ version ^ user_count`
 - `user_count <= MAX_USERS` (10)
 
 Si alguna condición falla, `EEPROM_Init()` llama a `EEPROM_Format()` y reporta `[EEPROM] Header invalido — EEPROM formateada`.
 
-## Usuario RFID (desde 0x010, 16 B c/u)
+## Usuario RFID (desde 0x010, `sizeof(user_record_t)` c/u)
 
 ```c
 #define RFID_UID_LEN        4    // longitud minima (UID corto / inyeccion UART)

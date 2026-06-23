@@ -1,3 +1,9 @@
+/*
+ * Módulo: EEPROM — implementación
+ * Lectura/escritura byte a byte sobre los registros EECR/EEAR/EEDR.
+ * Modela una tabla de hasta MAX_USERS registros + cabecera de validez.
+ * Solo escribe ante cambios persistentes reales (enrolar, borrar, cupos, mercado).
+ */
 #include "eeprom.h"
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -5,10 +11,12 @@
 
 static uint8_t eeprom_user_count;
 
+/* Checksum simple: XOR de los campos de la cabecera. */
 static uint8_t eeprom_calc_checksum(const eeprom_header_t *h) {
     return h->magic0 ^ h->magic1 ^ h->version ^ h->user_count;
 }
 
+/* Valida magic, version, rango de user_count y checksum. */
 static uint8_t eeprom_header_is_valid(const eeprom_header_t *h) {
     if (h->magic0 != EEPROM_MAGIC_0 || h->magic1 != EEPROM_MAGIC_1) return 0;
     if (h->version != EEPROM_VERSION) return 0;
@@ -16,6 +24,7 @@ static uint8_t eeprom_header_is_valid(const eeprom_header_t *h) {
     return (h->checksum == eeprom_calc_checksum(h));
 }
 
+/* Lee un byte. Espera a que termine una escritura previa (no bloquea el loop). */
 uint8_t EEPROM_ReadByte(uint16_t addr) {
     while (EECR & (1 << EEPE));
     EEARH = (uint8_t)(addr >> 8);
@@ -24,6 +33,7 @@ uint8_t EEPROM_ReadByte(uint16_t addr) {
     return EEDR;
 }
 
+/* Escribe un byte con la secuencia EEMPE->EEPE protegida contra interrupciones. */
 void EEPROM_WriteByte(uint16_t addr, uint8_t data) {
     while (EECR & (1 << EEPE));
     EEARH = (uint8_t)(addr >> 8);
@@ -54,6 +64,7 @@ uint8_t EEPROM_IsValid(void) {
     return eeprom_header_is_valid(&h);
 }
 
+/* Borra la tabla de usuarios y escribe una cabecera válida nueva. */
 void EEPROM_Format(void) {
     for (uint8_t i = 0; i < MAX_USERS; i++) {
         EEPROM_WriteByte(EEPROM_USERS_ADDR + i * EEPROM_USER_SIZE, 0);
@@ -68,6 +79,7 @@ void EEPROM_Format(void) {
     eeprom_user_count = 0;
 }
 
+/* Al arrancar: carga el contador si la cabecera es válida, si no, formatea. */
 void EEPROM_Init(void) {
     if (EEPROM_IsValid()) {
         eeprom_header_t h;
@@ -85,6 +97,7 @@ uint8_t EEPROM_GetUserCount(void) {
     return eeprom_user_count;
 }
 
+/* Carga el usuario index. Devuelve 1 solo si el slot está activo. */
 uint8_t EEPROM_LoadUser(uint8_t index, user_record_t *out) {
     if (index >= MAX_USERS) return 0;
     uint16_t addr = EEPROM_USERS_ADDR + index * EEPROM_USER_SIZE;
@@ -92,6 +105,7 @@ uint8_t EEPROM_LoadUser(uint8_t index, user_record_t *out) {
     return out->active ? 1 : 0;
 }
 
+/* Guarda un usuario y, si es nuevo (antes inactivo), actualiza el contador y cabecera. */
 uint8_t EEPROM_SaveUser(uint8_t index, const user_record_t *user) {
     if (index >= MAX_USERS) return 0;
     uint16_t addr = EEPROM_USERS_ADDR + index * EEPROM_USER_SIZE;
@@ -108,6 +122,7 @@ uint8_t EEPROM_SaveUser(uint8_t index, const user_record_t *user) {
     return 1;
 }
 
+/* Busca un UID (misma longitud) en la tabla; devuelve el índice en *index_out. */
 uint8_t EEPROM_FindUserByUid(const uint8_t *uid, uint8_t uid_len, uint8_t *index_out) {
     if (uid_len == 0 || uid_len > RFID_UID_MAX) return 0;
     for (uint8_t i = 0; i < MAX_USERS; i++) {
@@ -129,6 +144,7 @@ uint8_t EEPROM_FindUserByUid(const uint8_t *uid, uint8_t uid_len, uint8_t *index
     return 0;
 }
 
+/* Localiza el primer slot libre (active==0) para enrolar. */
 uint8_t EEPROM_FindFreeSlot(uint8_t *index_out) {
     for (uint8_t i = 0; i < MAX_USERS; i++) {
         user_record_t u;
@@ -142,6 +158,7 @@ uint8_t EEPROM_FindFreeSlot(uint8_t *index_out) {
     return 0;
 }
 
+/* Borra un usuario (active=0) y descuenta el contador y actualiza la cabecera. */
 uint8_t EEPROM_DeleteUser(uint8_t index) {
     if (index >= MAX_USERS) return 0;
     uint16_t addr = EEPROM_USERS_ADDR + index * EEPROM_USER_SIZE;
@@ -156,6 +173,7 @@ uint8_t EEPROM_DeleteUser(uint8_t index) {
     return 1;
 }
 
+/* Actualiza solo el campo game_credits (escritura mínima en EEPROM). */
 uint8_t EEPROM_UpdateGameCredits(uint8_t index, uint8_t credits) {
     if (index >= MAX_USERS) return 0;
     uint16_t addr = EEPROM_USERS_ADDR + index * EEPROM_USER_SIZE

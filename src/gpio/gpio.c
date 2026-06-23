@@ -1,7 +1,13 @@
+/*
+ * Módulo: GPIO — implementación
+ * Traduce un número de pin de Mega 2560 al par (registro, máscara) correspondiente.
+ * Solo cubre los pines usados por el proyecto; el resto se descarta sin error.
+ */
 #include "gpio.h"
 #include "../common/Definiciones.h"
 #include <avr/io.h>
 
+/* Relación pin -> registros DDR/PORT/PIN y bit dentro del puerto. */
 typedef struct {
     volatile uint8_t *ddr;
     volatile uint8_t *port;
@@ -9,6 +15,7 @@ typedef struct {
     uint8_t mask;
 } gpio_map_t;
 
+/* Resuelve el mapa de un pin. Devuelve 1 si está soportado, 0 si no. */
 static uint8_t gpio_map_pin(uint8_t pin, gpio_map_t *map) {
     if (map == 0) return 0;
 
@@ -42,6 +49,7 @@ static uint8_t gpio_map_pin(uint8_t pin, gpio_map_t *map) {
         GPIO_CASE(PIN_HEATER,     DDRG, PORTG, PING, 1);
         GPIO_CASE(PIN_FAN,        DDRG, PORTG, PING, 0);
         GPIO_CASE(PIN_OVEN,       DDRL, PORTL, PINL, 7);
+        GPIO_CASE(PIN_DOOR_LED,   DDRL, PORTL, PINL, 6);
         GPIO_CASE(PIN_RFID_RST,   DDRL, PORTL, PINL, 0);
         GPIO_CASE(PIN_SPI_MISO,   DDRB, PORTB, PINB, 3);
         GPIO_CASE(PIN_SPI_MOSI,   DDRB, PORTB, PINB, 2);
@@ -59,6 +67,7 @@ static uint8_t gpio_map_pin(uint8_t pin, gpio_map_t *map) {
 }
 
 void GPIO_Init(void) {
+    /* Sin configuración global: cada módulo pide su modo con GPIO_SetPinMode. */
 }
 
 void GPIO_SetPinMode(uint8_t pin, uint8_t mode) {

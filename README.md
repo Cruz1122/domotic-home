@@ -1,240 +1,152 @@
 <p align="center">
   <img src="./icon.png" alt="Domotic Home" width="160" />
-</p>
-
-<p align="center" style="font-size:2rem;"><strong>Domotic Home</strong></p>
-<p align="center" style="font-size:1.25rem; margin-top:-1em;"><em>Sistema domótico modular en C puro para ATmega2560</em></p>
-
-<p align="center">
-  <strong>Plataforma objetivo</strong>
+  <br><strong style="font-size:1.5rem;">Domotic Home</strong>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/MCU-ATmega2560-555555?labelColor=00979D&logo=arduino&logoColor=white" alt="ATmega2560" />
-  <img src="https://img.shields.io/badge/Lenguaje-C_puro-555555?labelColor=283593&logo=c&logoColor=white" alt="C puro" />
-  <img src="https://img.shields.io/badge/Librerias-Solo_propias-555555?labelColor=37474F" alt="Sin librerías externas" />
+  <img src="https://img.shields.io/badge/-Puro-555555?labelColor=283593&logo=c&logoColor=white" alt="C" />
   <img src="https://img.shields.io/badge/Arquitectura-Maquina_de_estados-555555?labelColor=6A1B9A" alt="Máquina de estados" />
 </p>
 
-<p align="center">
-  <strong>Interfaces y subsistemas</strong>
-</p>
+Firmware para ATmega2560 de un sistema domótico académico con control de seguridad, accesos RFID, confort ambiental y servicios remotos. Escrito en C puro, sin librerías externas.
 
-<p align="center">
-  <img src="https://img.shields.io/badge/RFID-RC522-555555?labelColor=1565C0" alt="RFID RC522" />
-  <img src="https://img.shields.io/badge/LCD-Interfaz_local-555555?labelColor=2E7D32" alt="LCD" />
-  <img src="https://img.shields.io/badge/Keypad-4x4-555555?labelColor=455A64" alt="Teclado matricial" />
-  <img src="https://img.shields.io/badge/Serial-Telemetria-555555?labelColor=EF6C00" alt="Serial" />
-  <img src="https://img.shields.io/badge/EEPROM-Persistencia-555555?labelColor=5D4037" alt="EEPROM" />
-</p>
+## Hardware
 
-## Descripción
-
-`domotic-home` es el firmware de un sistema domótico académico para vivienda, implementado sobre **ATmega2560** con enfoque procedural en **C puro**. El sistema integra seguridad, control de accesos RFID, interfaz local por LCD y teclado matricial, persistencia en EEPROM, actuadores reales/simulados y reporte de eventos por puerto serial.
-
-El alcance fue cerrado para evitar vender una casa domótica ficticia: varios actuadores del enunciado se representarán mediante LEDs, PWM, relé, servomotor o estados visibles en LCD/serial. Lo importante de la entrega es demostrar una arquitectura coherente, no una maqueta sobreactuada con funciones inconexas.
-
-## Decisiones cerradas del proyecto
-
-| Decisión | Definición |
+| Componente | Función |
 |---|---|
-| Microcontrolador | **ATmega2560 / Arduino Mega 2560** |
-| Lenguaje | C puro, sin librerías externas |
-| Librerías propias | Permitidas: drivers propios en `.c/.h` |
-| UI principal | LCD + teclado matricial 4x4 |
-| Código de administración | Constante compilada, digitada por teclado matricial |
-| Persistencia | EEPROM interna del ATmega2560 |
-| Comunicación de diagnóstico | UART/Serial hacia PC |
-| RFID | RC522 por SPI, con driver propio |
-| Alarmas | Intrusión por PIR y fuego/humo por MQ-2 |
-| Servicios remotos | UART1 / Virtual Terminal + resumen local en LCD |
+| ATmega2560 / Arduino Mega 2560 | Controlador principal |
+| RC522 | Lectura de tarjetas RFID |
+| LCD 16x2 | Interfaz de usuario local |
+| Teclado matricial 4x4 | Navegación y entrada de datos |
+| 2x PIR HC-SR501 | Detección de intrusión |
+| MQ-2 | Detección de humo/incendio |
+| Servomotor | Apertura de garaje |
+| Potenciómetro | Control de iluminación (ADC) |
+| LEDs, relé | Actuadores simulados donde no hay hardware físico |
 
-## Alcance funcional
+El detalle de pines está en [`docs/02_HARDWARE_Y_PINOUT.md`](docs/02_HARDWARE_Y_PINOUT.md), [`docs/06_MAPEO_PINES_ATMEGA2560.md`](docs/06_MAPEO_PINES_ATMEGA2560.md) y [`src/common/Definiciones.h`](src/common/Definiciones.h).
+
+## Funcionalidad
 
 ### Seguridad
 
-- Alarma de acceso activable/desactivable mediante código.
-- Alarma de incendio activable/desactivable mediante código.
-- Detección de intrusión usando dos sensores PIR HC-SR501.
-- Detección de humo usando sensor MQ-2 por ADC.
-- Reporte obligatorio por serial ante eventos críticos.
-- Visualización de estados y alertas en LCD.
+- Alarma de acceso: se activa/desactiva por código. Dispara con sensores PIR.
+- Alarma de incendio: se activa/desactiva por código. Dispara con MQ-2 por ADC.
+- Eventos críticos reportados por UART0.
 
 ### Accesos RFID
 
-- Lectura de tarjetas RFID mediante RC522.
-- Enrolamiento de tarjetas autorizadas.
-- Borrado lógico de tarjetas existentes.
-- Roles mínimos: padre/administrador e hijo.
-- Acceso por puerta principal simulado con LED.
-- Acceso por garaje mediante servomotor real.
-- Habitación de juegos con cupos por hijo.
-- Descuento de cupos después de cada ingreso.
-- Recarga de cupos por parte de padres/administradores.
-- Persistencia de usuarios y cupos en EEPROM.
+- Lectura de tarjetas por RC522 sobre SPI.
+- Enrolamiento y borrado de usuarios desde menú LCD/teclado.
+- Roles: padre (administrador) e hijo (cupos limitados).
+- Puerta principal: LED como imán.
+- Garaje: servomotor.
+- Habitación de juegos: validación RFID + cupos en EEPROM.
+- Recarga de cupos por usuario padre.
 
 ### Confort
 
-- Iluminación dimerizada mediante LED controlado por PWM.
-- Nivel de iluminación definido por potenciómetro.
-- Control de temperatura simulado desde teclado matricial.
-- Salidas de calefacción y ventilación representadas por LEDs o relé según disponibilidad.
+- Iluminación dimerizada: LED con PWM, nivel definido por potenciómetro.
+- Temperatura: control simulado de calefactor y ventilador.
+- Sonido remoto: ON/OFF y volumen por UART1, salida PWM proporcional.
 
-### Servicios
+### Servicios remotos (UART1)
 
-- Horno configurable por `UART1`: temperatura y tiempo.
-- Apagado automático del horno al terminar el tiempo programado.
-- Equipo de sonido controlable por `UART1`.
-- Volumen remoto por `RADIO VOL <0-100>`, mostrado como porcentaje en LCD.
-- Salida PWM proporcional al volumen solicitado.
-- Lista de mercado consultable por `UART1`.
-- Productos de mercado preferiblemente predefinidos, con cantidad configurable.
+- Horno: encendido con temperatura y tiempo configurable, apagado automático.
+- Sonido: encendido/apagado y volumen.
+- Mercado: lista de productos con cantidad, consultable remotamente.
+- Comandos documentados en [`docs/07_COMANDOS_USART.md`](docs/07_COMANDOS_USART.md).
 
-## Hardware base
+```
+HELP
+RADIO ON
+RADIO VOL 70
+HORNO ON 180 2
+MERCADO LIST
+```
 
-| Elemento | Uso en el sistema | Tipo de implementación |
-|---|---|---|
-| ATmega2560 / Mega 2560 | Controlador principal | Físico |
-| RFID-RC522 | Identificación de usuarios | Físico |
-| 2x PIR HC-SR501 | Intrusión/presencia | Físico |
-| MQ-2 | Humo/incendio | Físico |
-| LCD | Interfaz de usuario | Físico |
-| Teclado matricial 4x4 | Navegación y captura de código/datos | Físico |
-| Servo | Garaje | Físico |
-| LED puerta | Imán/cerradura principal | Simulación |
-| LED iluminación | Dimmer | Simulación física por PWM |
-| LEDs/relé | Calefactor, ventilador, horno | Simulación |
-| Potenciómetro | Dimmer de iluminación | Físico |
-| UART/USB | UART0 debug + UART1 control remoto | Físico |
+## Arquitectura
 
-### Contrato serial actual
+Tareas cooperativas no bloqueantes en `loop()`. Ningún módulo bloquea al resto: el sistema lee sensores, actualiza LCD, atiende comandos remotos y maneja actuadores en cada ciclo.
 
-- `UART0 / Serial` queda reservado para debug interno y eventos del sistema.
-- `UART1 / Serial1` queda reservado para control remoto / Virtual Terminal.
+```c
+void setup(void) {
+    UART_Init(UART_BAUD_DEFAULT);
+    GPIO_Init();
+    ADC_Init();
+    PWM_Init();
+    ServoPwm_Init();
+    Timer_Init();
+    EEPROM_Init();
+    RFID_Init();
+    Seguridad_Init();
+    Accesos_Init();
+    Confort_Init();
+    Remoto_Init();
+    UI_Init();
+}
 
-`UART2 / Serial2` y `UART3 / Serial3` quedan libres, sin uso funcional en la aplicación.
+void loop(void) {
+    uint32_t now_ms = Timer_Millis();
+    RFID_Task(now_ms);
+    Seguridad_Task(now_ms);
+    Accesos_Task(now_ms);
+    Confort_Task(now_ms);
+    Remoto_Task(now_ms);
+    UI_Task(now_ms);
+}
+```
 
-Las respuestas remotas limpias salen por `UART1`. Las trazas internas y eventos del sistema se observan por `UART0`.
-
-Para la lista completa de comandos remotos USART, ver `docs/07_COMANDOS_USART.md`.
+`UART0` se usa para debug y eventos del sistema. `UART1` para control remoto.
 
 ## Estructura del repositorio
 
-```txt
-domotic-home.ino                Orquestador principal: setup/loop
-
-src/
-  common/
-    Definiciones.h              Macros, constantes, tipos, mapa de pines
-
-  seguridad/
-    Seguridad.h                 Contrato del subsistema de alarmas
-    Seguridad.c                 Implementación de PIR, MQ-2 y estados de alarma
-
-  accesos/
-    Accesos.h                   Contrato de RFID, usuarios, puerta, garaje y juegos
-    Accesos.c                   Implementación de accesos y persistencia lógica
-
-  confort/
-    Confort.h                   Contrato de iluminación, temperatura y sonido
-    Confort.c                   PWM, ADC, actuadores de confort
-
-  remoto/
-    Remoto.h                    Servicios remotos: horno, mercado y parser UART1
-    Remoto.c                    Gestión de comandos remotos por Virtual Terminal
-
-  ui/
-    UI.h                        Contrato de interfaz LCD/teclado
-    UI.c                        Menús, navegación y captura de teclado
-
-docs/
-  00_ALCANCE_Y_DEMO.md          Alcance cerrado y guion de presentación
-  01_ARQUITECTURA.md            Máquina de estados, módulos y ciclo no bloqueante
-  02_HARDWARE_Y_PINOUT.md       Hardware, simulaciones y asignación preliminar de pines
-  03_INTERFAZ_LCD_TECLADO.md    Menús, navegación y pantallas LCD
-  04_EEPROM.md                  Modelo de datos persistente
-  05_PLAN_IMPLEMENTACION.md     Orden de trabajo y criterios de aceptación
-  REFERENCIAS.md                Fuentes técnicas base
+```
+domotic-home.ino          Orquestador: setup + loop
 ```
 
-## Arquitectura recomendada
+**Drivers**
 
-El firmware debe implementarse como una **máquina de estados centralizada**, con tareas cooperativas no bloqueantes. La función `loop()` no debe quedar atrapada esperando entradas en un menú, ni usando retardos largos para horno, servo, LCD o alarmas.
-
-Flujo mínimo esperado:
-
-```txt
-setup()
-  -> seguridad_init()
-  -> accesos_init()
-  -> confort_init()
-  -> remoto_init()
-  -> ui_init()
-
-loop()
-  -> seguridad_task()
-  -> accesos_task()
-  -> confort_task()
-  -> remoto_task()
-  -> ui_task()
-```
-
-La regla es simple: **ningún módulo debe bloquear al resto**. Si el horno está encendido por 5 minutos, el sistema debe seguir leyendo RFID, PIR, MQ-2, teclado y actualizando LCD.
-
-## Interfaz de usuario
-
-La navegación se realiza con teclado matricial:
-
-| Tecla | Uso recomendado |
+| Módulo | Archivos |
 |---|---|
-| `A` | Seguridad |
-| `B` | Accesos RFID |
-| `C` | Ambiente/confort |
-| `D` | Servicios |
-| `#` | Confirmar |
-| `*` | Volver/cancelar |
-| `0-9` | Datos numéricos |
+| common | [`Definiciones.h`](src/common/Definiciones.h) |
+| gpio | [`gpio.h`](src/gpio/gpio.h), [`gpio.c`](src/gpio/gpio.c) |
+| timer | [`timer.h`](src/timer/timer.h), [`timer.c`](src/timer/timer.c) |
+| uart | [`uart.h`](src/uart/uart.h), [`uart.c`](src/uart/uart.c) |
+| spi | [`spi.h`](src/spi/spi.h), [`spi.c`](src/spi/spi.c) |
+| adc | [`adc.h`](src/adc/adc.h), [`adc.c`](src/adc/adc.c) |
+| pwm | [`pwm.h`](src/pwm/pwm.h), [`pwm.c`](src/pwm/pwm.c) |
+| servo | [`servo_pwm.h`](src/servo/servo_pwm.h), [`servo_pwm.c`](src/servo/servo_pwm.c) |
+| eeprom | [`eeprom.h`](src/eeprom/eeprom.h), [`eeprom.c`](src/eeprom/eeprom.c) |
+| rfid_rc522 | [`rfid_rc522.h`](src/rfid_rc522/rfid_rc522.h), [`rfid_rc522.c`](src/rfid_rc522/rfid_rc522.c) |
+| keypad | [`keypad.h`](src/keypad/keypad.h), [`keypad.c`](src/keypad/keypad.c) |
 
-Pantalla principal propuesta:
+**Módulos de aplicación**
 
-```txt
-A Seg B RFID
-C Amb D Serv
-```
+| Módulo | Archivos |
+|---|---|
+| seguridad | [`Seguridad.h`](src/seguridad/Seguridad.h), [`Seguridad.c`](src/seguridad/Seguridad.c) |
+| accesos | [`Accesos.h`](src/accesos/Accesos.h), [`Accesos.c`](src/accesos/Accesos.c) |
+| confort | [`Confort.h`](src/confort/Confort.h), [`Confort.c`](src/confort/Confort.c) |
+| remoto | [`Remoto.h`](src/remoto/Remoto.h), [`Remoto.c`](src/remoto/Remoto.c) |
+| ui | [`UI.h`](src/ui/UI.h), [`UI.c`](src/ui/UI.c), [`lcd.h`](src/ui/lcd.h), [`lcd.c`](src/ui/lcd.c) |
+| test | [`test_bootstrap.h`](src/test/test_bootstrap.h), [`test_bootstrap.c`](src/test/test_bootstrap.c) |
 
-## Demo mínima obligatoria
+**Documentación**
 
-La presentación debe ejecutarse como una secuencia integrada:
+| Documento |
+|---|
+| [`00_ALCANCE_Y_DEMO.md`](docs/00_ALCANCE_Y_DEMO.md) |
+| [`01_ARQUITECTURA.md`](docs/01_ARQUITECTURA.md) |
+| [`02_HARDWARE_Y_PINOUT.md`](docs/02_HARDWARE_Y_PINOUT.md) |
+| [`03_INTERFAZ_LCD_TECLADO.md`](docs/03_INTERFAZ_LCD_TECLADO.md) |
+| [`04_EEPROM.md`](docs/04_EEPROM.md) |
+| [`05_PLAN_IMPLEMENTACION.md`](docs/05_PLAN_IMPLEMENTACION.md) |
+| [`06_MAPEO_PINES_ATMEGA2560.md`](docs/06_MAPEO_PINES_ATMEGA2560.md) |
+| [`06_UART_EVENTOS.md`](docs/06_UART_EVENTOS.md) |
+| [`07_COMANDOS_USART.md`](docs/07_COMANDOS_USART.md) |
 
-1. Iniciar sistema y verificar menú principal directo.
-2. Intentar activar alarma de acceso con código incorrecto.
-3. Activar alarma de acceso con código correcto, disparar PIR y ver alerta en LCD + serial.
-4. Leer tarjeta RFID autorizada y simular apertura de puerta con LED.
-5. Leer tarjeta autorizada y abrir garaje con servo.
-6. Leer tarjeta de hijo, ingresar a sala de juegos y descontar cupo.
-7. Reiniciar y demostrar que los cupos persisten en EEPROM.
-8. Controlar iluminación con potenciómetro y PWM.
-9. En `UART1`, ejecutar `RADIO ON` y `RADIO VOL 70` y verificar PWM proporcional.
-10. En `UART1`, ejecutar `HORNO ON 180 2` y ver cuenta regresiva no bloqueante.
-11. En `UART1`, agregar/consultar productos de mercado.
+## Notas sobre simulaciones
 
-## Reglas de implementación
-
-- No usar librerías externas como `MFRC522`, `LiquidCrystal`, `Servo`, `Keypad`, `EEPROM` o `SPI`.
-- Sí se permiten módulos propios: `spi.c`, `uart.c`, `lcd.c`, `keypad.c`, `adc.c`, `pwm.c`, `timer.c`, `eeprom.c`, `rfid_rc522.c`.
-- Evitar `delay()` en cualquier lógica funcional.
-- Usar `uint8_t`, `uint16_t`, `uint32_t` y tipos explícitos.
-- Mantener el `.ino` como orquestador mínimo si se compila con Arduino IDE.
-- Aislar el acceso a registros en drivers propios.
-- Reportar por serial todo evento relevante de seguridad, acceso, horno y errores.
-- Mantener los datos persistentes en EEPROM con cabecera de validez.
-
-## Documentación rápida
-
-- [Alcance y demo](docs/00_ALCANCE_Y_DEMO.md)
-- [Arquitectura](docs/01_ARQUITECTURA.md)
-- [Hardware y pinout](docs/02_HARDWARE_Y_PINOUT.md)
-- [Interfaz LCD/teclado](docs/03_INTERFAZ_LCD_TECLADO.md)
-- [EEPROM](docs/04_EEPROM.md)
-- [Plan de implementación](docs/05_PLAN_IMPLEMENTACION.md)
-- [Referencias](docs/REFERENCIAS.md)
+Varios actuadores del enunciado se representan con LEDs o relé porque el propósito del proyecto es demostrar integración de sensores, lógica de control, persistencia y comunicación serial, no construir una casa domótica funcional. Cada simulación está declarada explícitamente.

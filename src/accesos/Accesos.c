@@ -1,3 +1,9 @@
+/*
+ * Módulo: Accesos — implementación
+ * Cada modo (access_mode_t) decide qué hacer con el UID leído.
+ * Las aperturas son temporizadas y no bloqueantes (LED de puerta y servo del garaje).
+ * Los cupos de juegos y la recarga se persisten en EEPROM.
+ */
 #include "Accesos.h"
 #include "../rfid_rc522/rfid_rc522.h"
 #include "../eeprom/eeprom.h"
@@ -9,16 +15,16 @@ static access_mode_t current_mode;
 static uint8_t       pending_credits;
 static uint8_t       cur_uid_len;        /* longitud del UID en proceso (4/7/10) */
 
-/* Recharge internal two-card flow */
-static uint8_t recharge_step;                /* 0=wait parent, 1=wait child */
+/* Flujo de recarga en dos pasos: 0=espera tarjeta PADRE, 1=espera tarjeta HIJO. */
+static uint8_t recharge_step;
 
-/* Non-blocking output timers */
+/* Temporizadores no bloqueantes de las salidas (LED puerta y servo garaje). */
 static uint8_t  door_led_active;
 static uint32_t door_led_tick;
 static uint8_t  garage_active;
 static uint32_t garage_tick;
 
-/* Pending message for UI */
+/* Mensaje pendiente para mostrar en la UI tras una operación RFID. */
 static char    result_msg[17];
 static uint8_t result_pending;
 
@@ -43,9 +49,10 @@ static void print_uid(const uint8_t *uid) {
 }
 
 /* ----------------------------------------------------------
- *  Mode handlers  (private)
+ *  Handlers por modo (privados)
  * ---------------------------------------------------------- */
 
+/* Puerta principal: valida el UID y enciende el LED que simula la cerradura. */
 static void handle_main_door(const uint8_t *uid, uint32_t now_ms) {
     uint8_t idx;
     if (!EEPROM_FindUserByUid(uid, cur_uid_len, &idx)) {
@@ -53,6 +60,7 @@ static void handle_main_door(const uint8_t *uid, uint32_t now_ms) {
         set_result("No registrado");
         return;
     }
+    /* Activa el LED que simula la cerradura de la puerta principal. */
     GPIO_WritePin(PIN_DOOR_LED, GPIO_HIGH);
     door_led_active = 1;
     door_led_tick = now_ms;
@@ -62,6 +70,7 @@ static void handle_main_door(const uint8_t *uid, uint32_t now_ms) {
     set_result("Puerta OK");
 }
 
+/* Garaje: valida el UID y abre el servo; el cierre se temporiza en Accesos_Task. */
 static void handle_garage(const uint8_t *uid, uint32_t now_ms) {
     uint8_t idx;
     if (!EEPROM_FindUserByUid(uid, cur_uid_len, &idx)) {
@@ -78,6 +87,7 @@ static void handle_garage(const uint8_t *uid, uint32_t now_ms) {
     set_result("Garaje OK");
 }
 
+/* Sala de juegos: solo hijos, descuenta un cupo y lo guarda en EEPROM. */
 static void handle_game_room(const uint8_t *uid) {
     uint8_t idx;
     user_record_t u;
@@ -110,6 +120,7 @@ static void handle_game_room(const uint8_t *uid) {
     set_result("Juegos OK");
 }
 
+/* Enrola un UID nuevo como PADRE o HIJO en el primer slot libre. */
 static void handle_enroll(const uint8_t *uid, user_type_t type) {
     uint8_t idx;
     if (EEPROM_FindUserByUid(uid, cur_uid_len, &idx)) {
@@ -138,6 +149,7 @@ static void handle_enroll(const uint8_t *uid, user_type_t type) {
     set_result("Enrolado OK");
 }
 
+/* Borra un usuario existente por su UID. */
 static void handle_delete(const uint8_t *uid) {
     uint8_t idx;
     if (!EEPROM_FindUserByUid(uid, cur_uid_len, &idx)) {
@@ -152,9 +164,11 @@ static void handle_delete(const uint8_t *uid) {
     set_result("Borrado OK");
 }
 
+/* Recarga de cupos en dos pasos: primero autentica PADRE, luego suma a un HIJO.
+ * Valida rol en cada paso para evitar que un hijo se autoricarga. */
 static void handle_recharge(const uint8_t *uid) {
     if (recharge_step == 0) {
-        /* Step 1: wait for a PARENT card to authorise */
+        /* Paso 1: espera tarjeta PADRE que autoriza la recarga. */
         uint8_t idx;
         user_record_t u;
         if (!EEPROM_FindUserByUid(uid, cur_uid_len, &idx) || !EEPROM_LoadUser(idx, &u)) {
@@ -174,6 +188,7 @@ static void handle_recharge(const uint8_t *uid) {
     }
 
     if (recharge_step == 1) {
+        /* Paso 2: espera tarjeta HIJO y suma pending_credits (tope 255). */
         uint8_t idx;
         user_record_t u;
         if (!EEPROM_FindUserByUid(uid, cur_uid_len, &idx) || !EEPROM_LoadUser(idx, &u)) {
@@ -201,7 +216,7 @@ static void handle_recharge(const uint8_t *uid) {
 }
 
 /* ----------------------------------------------------------
- *  Public API
+ *  API pública
  * ---------------------------------------------------------- */
 
 void Accesos_Init(void) {
@@ -221,17 +236,19 @@ void Accesos_Init(void) {
 }
 
 void Accesos_Task(uint32_t now_ms) {
-    /* --- Non-blocking output timing --- */
+    /* --- Temporizadores no bloqueantes de las salidas --- */
+    /* LED de puerta: se apaga solo a los 2 s de la apertura. */
     if (door_led_active && (uint32_t)(now_ms - door_led_tick) >= 2000U) {
         GPIO_WritePin(PIN_DOOR_LED, GPIO_LOW);
         door_led_active = 0;
     }
+    /* Garaje: cierra el servo a los 3 s de la apertura. */
     if (garage_active && (uint32_t)(now_ms - garage_tick) >= 3000U) {
         ServoPwm_Close();
         garage_active = 0;
     }
 
-    /* --- Consume UID if available --- */
+    /* --- Consume el UID si el driver dejó uno listo --- */
     if (!RFID_UIDAvailable()) return;
 
     uint8_t uid[RFID_UID_MAX];
@@ -243,6 +260,7 @@ void Accesos_Task(uint32_t now_ms) {
         }
         return;
     }
+    /* Validación de longitud de UID (4/7/10 bytes ISO14443A). */
     if (uid_len < RFID_UID_LEN || uid_len > RFID_UID_MAX) {
         UART_WriteEvent(SER_RFID, "UID rechazada: longitud no soportada");
         set_result("UID invalida");

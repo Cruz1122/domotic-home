@@ -62,28 +62,14 @@ Eventos seriales esperados:
 [ALARMA INCENDIO] Codigo invalido
 ```
 
-### Alarma de acceso
-
-```txt
-Alarma acceso
-1 ON 2 OFF
-```
-
-Si se dispara:
+Si se dispara la alarma de acceso:
 
 ```txt
 INTRUSION
 PIR1 ACTIVO
 ```
 
-### Alarma de incendio
-
-```txt
-Alarma fuego
-1 ON 2 OFF
-```
-
-Si se dispara:
+Si se dispara la alarma de incendio:
 
 ```txt
 ALERTA HUMO
@@ -93,76 +79,54 @@ Nivel: 73%
 ## Menú RFID
 
 ```txt
-1 Leer 2 Enrol
-3 Borrar 4 Juegos
-```
-
-### Lectura de usuario
-
-```txt
-UID OK
-Tipo: PADRE
-```
-
-```txt
-UID OK
-Hijo Cupos: 3
+1Pta 2Gar 3Jue
+4Enr 5Bor 6Rec *V
 ```
 
 ### Enrolamiento
 
 ```txt
-Acerque tarjeta
-Esperando...
+Enrolar:
+1Padre 2Hijo *V
 ```
 
 Luego:
 
 ```txt
-Tipo usuario
-1 Padre 2 Hijo
-```
-
-Confirmación:
-
-```txt
-Usuario guardado
-EEPROM OK
+Registrar PADRE
+Acerque tarjeta
 ```
 
 ### Borrado
 
 ```txt
+Borrar tarjeta
 Acerque tarjeta
-para borrar
 ```
 
 Confirmación:
 
 ```txt
-Usuario borrado
-EEPROM OK
+Borrado OK
 ```
 
 ### Sala de juegos
 
 ```txt
-Acerque hijo
-para ingreso
+Acerque tarjeta
+* Cancelar
 ```
 
 Permitido:
 
 ```txt
 Juegos OK
-Restantes: 2
 ```
 
 Denegado:
 
 ```txt
 Sin cupos
-Acceso negado
 ```
 
 ### Recarga de cupos
@@ -171,6 +135,8 @@ Acceso negado
 Cupos nuevos:
 __ #OK
 ```
+
+Luego el firmware pide primero una tarjeta de padre y después una tarjeta de hijo para aplicar la recarga.
 
 ## Menú ambiente
 
@@ -184,8 +150,8 @@ El porcentaje se actualiza leyendo el potenciómetro asignado.
 ### Temperatura
 
 ```txt
-Temp obj: 24C
-1+ 2- #OK
+Temp obj 10-40
+24 #OK *Vol
 ```
 
 Estado de actuadores:
@@ -195,7 +161,7 @@ Calefactor ON
 Ventilador OFF
 ```
 
-Como no se definió sensor físico de temperatura, este módulo es simulación de consigna y salidas.
+Como no se definió sensor físico de temperatura, este módulo es simulación de consigna y salidas. En el firmware actual la temperatura objetivo se ingresa como valor numérico entre `10` y `40`.
 
 ### Sonido
 
@@ -225,9 +191,8 @@ Pendiente
 ## Lista de mercado
 
 ```txt
-1 Agregar
-2 Consultar
-3 Borrar
+1Agreg 2Ver
+3Borrar *Vol
 ```
 
 Productos predefinidos recomendados:
@@ -253,8 +218,8 @@ Cant: __ #OK
 Consultar:
 
 ```txt
-Pan x2
-Leche x1
+1/2 Pan
+x2 <A D> *V
 ```
 
 ## Errores de UI
@@ -262,8 +227,8 @@ Leche x1
 | Caso | Mensaje LCD | Evento serial |
 |---|---|---|
 | Código incorrecto | `Codigo invalido` | `[ALARMA ACCESO] Codigo invalido` o `[ALARMA INCENDIO] Codigo invalido` |
-| Tarjeta no registrada | `UID no valido` | `[RFID] Tarjeta no registrada` |
-| EEPROM llena | `Memoria llena` | `[EEPROM] Sin slots` |
+| Tarjeta no registrada | `No registrado` | `[RFID] ... no registrada` |
+| EEPROM llena | `EEPROM llena` | `[EEPROM] Sin slots libres` |
 | Sin cupos de juego | `Sin cupos` | `[JUEGOS] Acceso denegado` |
-| Horno con tiempo cero | `Tiempo invalido` | `[HORNO] Tiempo invalido` |
-| Producto inválido | `Prod invalido` | `[MERCADO] Producto invalido` |
+| Horno con tiempo cero | `Pendiente` | `[ERR][HORNO] Tiempo fuera de rango` |
+| Producto inválido | `Prod: 1-8` | `[ERR][MERCADO] Producto invalido` |

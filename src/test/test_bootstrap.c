@@ -1,3 +1,8 @@
+/*
+ * Módulo: Test bootstrap — implementación
+ * Crea un usuario HIJO de prueba (UID 01020304, 10 cupos) si el slot 0 está vacío.
+ * Útil para demos sin tener que enrolar a mano. No pisa usuarios existentes.
+ */
 #include "test_bootstrap.h"
 
 #include "../common/Definiciones.h"
@@ -9,6 +14,7 @@
 void TestBootstrap_SeedDemoUser(void) {
     user_record_t user;
 
+    /* Si ya hay un usuario en el slot 0, no hace nada (no pisa datos reales). */
     if (EEPROM_LoadUser(0, &user)) {
         return;
     }

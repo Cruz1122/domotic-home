@@ -1,3 +1,9 @@
+/*
+ * Módulo: Remoto — implementación
+ * Parser de líneas por UART1 que despacha a RADIO/HORNO/MERCADO.
+ * Las respuestas al usuario van por UART1 con prefijo [OK]/[ERR]/[STATUS].
+ * Los eventos de debug internos van por UART0 (no se mezclan con las respuestas).
+ */
 #include "Remoto.h"
 #include "../uart/uart.h"
 #include "../confort/Confort.h"
@@ -10,16 +16,16 @@
 #define OVEN_TEMP_MAX_C     300U
 #define OVEN_TIME_MIN_MIN     1U
 #define OVEN_TIME_MAX_MIN   180U
-/* Cada minuto logico del horno dura 5 segundos reales en modo demo. */
+/* En modo demo, cada minuto lógico del horno dura 5 segundos reales. */
 #define OVEN_DEMO_MINUTE_MS 5000UL
 
-/* Oven state */
+/* Estado del horno: encendido, temperatura objetivo y cuenta regresiva. */
 static uint8_t  oven_running;
 static uint16_t oven_target_temp;
 static uint16_t oven_remaining_min;
 static uint32_t oven_last_tick;
 
-/* UART1 command buffer */
+/* Buffer de la línea de comando entrante por UART1. */
 static char   cmd_buf[REMOTE_LINE_MAX];
 static uint8_t cmd_len;
 static uint8_t cmd_overflow;
@@ -155,6 +161,7 @@ static uint8_t parse_u16(const char *s, uint16_t *out) {
     return 1;
 }
 
+/* HELP: lista los comandos disponibles por UART1. */
 static void handle_help(void) {
     remote_status(MOD_SISTEMA, "Comandos:");
     remote_status(MOD_SISTEMA, "RADIO ON|OFF|VOL <0-100>|STATUS");
@@ -162,6 +169,12 @@ static void handle_help(void) {
     remote_status(MOD_SISTEMA, "MERCADO PRODUCTS|ADD <id> <qty>|LIST|CLEAR|STATUS");
 }
 
+/* Comandos RADIO (sonido) por UART1:
+ *   RADIO ON     -> enciende el sonido.
+ *   RADIO OFF    -> apaga el sonido (PWM a 0).
+ *   RADIO STATUS -> reporta estado y volumen remoto actual.
+ *   RADIO VOL n  -> ajusta el volumen remoto (0-100) y el PWM proporcional.
+ */
 static void handle_radio(char **tok, uint8_t n) {
     if (n < 2) {
         remote_err(MOD_RADIO, "Falta accion");
@@ -229,6 +242,12 @@ static void handle_radio(char **tok, uint8_t n) {
     remote_err(MOD_RADIO, "Accion desconocida");
 }
 
+/* Comandos HORNO por UART1:
+ *   HORNO ON temp min -> enciende el horno (LED) con temp 10-300 y min 1-180.
+ *   HORNO OFF         -> apaga el horno a mano.
+ *   HORNO STATUS      -> reporta estado, temperatura objetivo y tiempo restante.
+ * Validaciones: rangos de temperatura/tiempo y parámetros numéricos.
+ */
 static void handle_horno(char **tok, uint8_t n) {
     uint16_t temp = 0;
     uint16_t min = 0;
@@ -291,6 +310,12 @@ static void handle_horno(char **tok, uint8_t n) {
     remote_err(MOD_HORNO, "Accion desconocida");
 }
 
+/* Comandos MERCADO por UART1:
+ *   MERCADO PRODUCTS      -> lista los 8 productos válidos con su ID.
+ *   MERCADO ADD id qty    -> agrega/acumula un producto (id 1-8, qty 1-99).
+ *   MERCADO LIST|STATUS   -> muestra la lista actual.
+ *   MERCADO CLEAR         -> vacía la lista y guarda en EEPROM.
+ */
 static void handle_market(char **tok, uint8_t n) {
     uint16_t product_id = 0;
     uint16_t quantity = 0;
@@ -365,6 +390,7 @@ static void handle_market(char **tok, uint8_t n) {
     remote_err(MOD_MERCADO, "Accion desconocida");
 }
 
+/* Estado del sonido por UART1: ON/OFF y volumen remoto actual. */
 static void radio_status(void) {
     remote_status_prefix(MOD_RADIO);
     if (Confort_IsSoundEnabled()) {
@@ -379,6 +405,7 @@ static void radio_status(void) {
     UART1_WriteChar('\n');
 }
 
+/* Estado del horno por UART1: ON/OFF, temperatura objetivo y minutos restantes. */
 static void oven_status(void) {
     uint16_t t, m;
 
@@ -512,6 +539,7 @@ uint8_t Remoto_MarketGetProductCount(void) {
 
 /* ---- Oven control ---- */
 
+/* Arranca el horno: activa el LED y guarda temp/min y el tick de inicio. */
 static void oven_start(uint16_t temp, uint16_t min) {
     oven_running = 1;
     oven_target_temp = temp;
@@ -520,13 +548,15 @@ static void oven_start(uint16_t temp, uint16_t min) {
     GPIO_WritePin(PIN_OVEN_LED, GPIO_HIGH);
 }
 
+/* Apaga el horno y el LED. */
 static void oven_stop(void) {
     oven_running = 0;
     GPIO_WritePin(PIN_OVEN_LED, GPIO_LOW);
 }
 
-/* ---- Command parser ---- */
+/* ---- Parser de comandos ---- */
 
+/* Divide la línea en tokens (en mayúsculas) y despacha al módulo correspondiente. */
 static void process_command(void) {
     char *tokens[REMOTE_MAX_TOKENS];
     uint8_t count;
@@ -561,8 +591,9 @@ static void process_command(void) {
     remote_err(MOD_SISTEMA, "Comando desconocido. Escriba HELP");
 }
 
-/* ---- Market EEPROM persistence ---- */
+/* ---- Persistencia de la lista de mercado en EEPROM (desde 0x100) ---- */
 
+/* Guarda la lista: 1 byte de count + pares (product_id, quantity). */
 static void market_save(void) {
     if (market_count > MARKET_MAX_ITEMS) return;
     uint8_t buf[1 + MARKET_MAX_ITEMS * 2];
@@ -574,6 +605,7 @@ static void market_save(void) {
     EEPROM_WriteBlock(EEPROM_MARKET_ADDR, buf, 1 + market_count * 2);
 }
 
+/* Carga la lista desde EEPROM; si el count es inválido, la inicializa vacía. */
 static void market_load(void) {
     uint8_t count = EEPROM_ReadByte(EEPROM_MARKET_ADDR);
     if (count > MARKET_MAX_ITEMS) {
@@ -605,7 +637,7 @@ void Remoto_Init(void) {
 }
 
 void Remoto_Task(uint32_t now_ms) {
-    /* Read UART1 commands */
+    /* Lee comandos de UART1 carácter a carácter; procesa la línea al recibir CR/LF. */
     while (UART1_Available()) {
         char c = UART1_ReadChar();
         if (c == '\n' || c == '\r') {
@@ -626,7 +658,7 @@ void Remoto_Task(uint32_t now_ms) {
         }
     }
 
-    /* Oven countdown */
+    /* Cuenta regresiva del horno (no bloqueante). Al llegar a 0 se apaga solo. */
     if (oven_running) {
         if (Timer_Expired(oven_last_tick, OVEN_DEMO_MINUTE_MS)) {
             oven_last_tick = now_ms;

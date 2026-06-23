@@ -1,9 +1,14 @@
+/*
+ * Módulo: RFID (RC522) — implementación
+ * Dos fuentes de UID que convergen en el mismo buffer (rf_uid):
+ *   FUENTE 1 (RFID_UART_INJECT): inyección por UART0 para Proteus.
+ *   FUENTE 2 (RFID_USE_RC522): RC522 real por SPI con anticolisión ISO14443A.
+ * RFID_Task no bloquea: sondea la fuente activa y deja el UID listo si lo resuelve.
+ */
 #include "rfid_rc522.h"
 #include "../uart/uart.h"
 
-/* ------------------------------------------------------------------
- *  Estado del UID resuelto (compartido por ambas fuentes)
- * ------------------------------------------------------------------ */
+/* Estado del UID resuelto (compartido por ambas fuentes). */
 static uint8_t  rf_uid[RFID_UID_MAX];
 static uint8_t  rf_uid_len;
 static uint8_t  rf_uid_ready;
@@ -15,6 +20,7 @@ static void rf_clear_uid(void) {
     for (uint8_t i = 0; i < RFID_UID_MAX; i++) rf_uid[i] = 0;
 }
 
+/* Guarda un UID resuelto en el buffer compartido y marca "listo". */
 static void rf_commit_uid(const uint8_t *uid, uint8_t len) {
     if (len > RFID_UID_MAX) len = RFID_UID_MAX;
     for (uint8_t i = 0; i < len; i++) rf_uid[i] = uid[i];
@@ -25,7 +31,7 @@ static void rf_commit_uid(const uint8_t *uid, uint8_t len) {
 }
 
 /* ==================================================================
- *  FUENTE 1 — Inyeccion de UID por UART consola (Proteus / pruebas)
+ *  FUENTE 1 — Inyección de UID por UART0 (simulación Proteus / pruebas)
  *  Formato aceptado: pares hex + Enter, p.ej.  "AABBCCDD\n"
  * ================================================================== */
 #if RFID_UART_INJECT
@@ -35,6 +41,7 @@ static uint8_t sim_uid[RFID_UID_MAX];
 static uint8_t sim_uid_count;
 static uint8_t sim_nibble;
 
+/* Convierte un carácter hex a su valor 0-15, o 0xFF si no es hex. */
 static uint8_t sim_hex_val(char c) {
     if (c >= '0' && c <= '9') return (uint8_t)(c - '0');
     if (c >= 'A' && c <= 'F') return (uint8_t)(c - 'A' + 10);
@@ -48,6 +55,7 @@ static void sim_reset(void) {
     sim_nibble = 0;
 }
 
+/* Lee caracteres de UART0 y arma el UID. Acepta 4, 7 o 10 bytes (ISO14443A). */
 static void rf_poll_uart_inject(void) {
     while (UART_Available()) {
         char c = UART_ReadChar();
@@ -152,6 +160,7 @@ static uint8_t spi_xfer(uint8_t data, uint8_t *out) {
     return SPI_Transfer(data, out, RC522_TIMEOUT_TICKS);
 }
 
+/* Escribe un registro del RC522 (dirección << 1, bit R/W=0). */
 static uint8_t rc522_write_reg(uint8_t addr, uint8_t val) {
     uint8_t dummy;
     SPI_Select();
@@ -161,6 +170,7 @@ static uint8_t rc522_write_reg(uint8_t addr, uint8_t val) {
     return 1;
 }
 
+/* Lee un registro del RC522 (dirección << 1 | 0x80). */
 static uint8_t rc522_read_reg(uint8_t addr, uint8_t *val) {
     uint8_t dummy;
     SPI_Select();
@@ -188,6 +198,7 @@ static uint8_t rc522_fifo_read(uint8_t *data, uint8_t len) {
     return 1;
 }
 
+/* Calcula el CRC-A que pide ISO14443A para SELECT. */
 static uint8_t rc522_calc_crc(const uint8_t *data, uint8_t len, uint8_t out[2]) {
     uint8_t irq;
     if (!rc522_write_reg(RC522_REG_COMMAND, RC522_CMD_IDLE)) return 0;
@@ -207,6 +218,7 @@ static uint8_t rc522_calc_crc(const uint8_t *data, uint8_t len, uint8_t out[2]) 
     return 0;
 }
 
+/* Transceive: envía tx, espera respuesta en rx con timeout por polling. */
 static uint8_t rc522_transceive(const uint8_t *tx, uint8_t tx_len, uint8_t tx_last_bits, uint8_t *rx, uint8_t *rx_len, uint8_t *err_reg, rfid_status_t *status) {
     uint8_t irq = 0;
     uint8_t err = 0;
@@ -266,6 +278,7 @@ static void rf_log_status(uint32_t now_ms, rfid_status_t st, uint8_t err_reg) {
     UART_Newline();
 }
 
+/* REQA/WUPA: pregunta si hay una tarjeta en el campo. */
 static rfid_status_t rf_request(uint8_t cmd, uint32_t now_ms) {
     uint8_t tx = cmd;
     uint8_t rx[2] = {0, 0};
@@ -372,6 +385,8 @@ static void rc522_halt(void) {
     (void)rc522_transceive(tx, 4, 0x00, rx, &rx_len, &err_reg, &st);
 }
 
+/* Inicializa el hardware del RC522. Si la versión leída es 0x00/0xFF o falla
+ * la lectura, considera el chip ausente y deja solo la inyección por UART. */
 static void rc522_init_hw(void) {
     rf_enabled = 1;
     rf_poll_tick = 0;
@@ -443,7 +458,7 @@ static uint8_t rf_poll_rc522(uint32_t now_ms) {
 #endif /* RFID_USE_RC522 */
 
 /* ==================================================================
- *  API publica
+ *  API pública
  * ================================================================== */
 
 void RFID_Init(void) {

@@ -92,7 +92,7 @@ Fuente de verdad: `docs/06_MAPEO_PINES_ATMEGA2560.md`.
 | PIR 2 | D39 | Entrada digital |
 | MQ-2 AO | A0 | Entrada ADC |
 | Pot dimmer | A1 | Entrada ADC |
-| LED puerta principal | D6 | PWM o digital |
+| LED puerta principal | D43 | Digital |
 | LED iluminación | D7 | PWM |
 | PWM sonido | D8 | PWM |
 | Servo garaje | D9 | PWM/timer |
@@ -139,7 +139,7 @@ Fuente de verdad: `docs/06_MAPEO_PINES_ATMEGA2560.md`.
 #define PIN_FAN_LED              41
 #define PIN_OVEN_LED             42
 
-#define PIN_DOOR_LED             6
+#define PIN_DOOR_LED             43
 #define PIN_LIGHT_PWM            7
 #define PIN_SOUND_PWM            8
 #define PIN_GARAGE_SERVO         9

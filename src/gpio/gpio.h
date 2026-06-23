@@ -1,3 +1,8 @@
+/*
+ * Módulo: GPIO
+ * Driver de pines digitales para ATmega2560. Abstrae DDR/PORT/PIN por número
+ * de pin de Arduino Mega, para no esparcer registros por todo el proyecto.
+ */
 #ifndef GPIO_H
 #define GPIO_H
 
@@ -7,9 +12,7 @@
 extern "C" {
 #endif
 
-/* Supported on ATmega2560 project pins only.
- * Unsupported pins are ignored on write/mode and read as 0.
- */
+/* Pines no soportados por el mapa se ignoran al escribir y leen como 0. */
 #define GPIO_IN    0
 #define GPIO_OUT   1
 #define GPIO_LOW   0

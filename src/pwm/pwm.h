@@ -1,3 +1,9 @@
+/*
+ * Módulo: PWM
+ * PWM por hardware (Timer4) para tres salidas:
+ *   PIN_PWM_DOOR_LED (OC4A), PIN_PWM_LIGHT (OC4B) y PIN_PWM_SOUND (OC4C).
+ * De 8 bits: duty 0-255. El servo del garaje usa su propio timer (servo_pwm).
+ */
 #ifndef PWM_H
 #define PWM_H
 

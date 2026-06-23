@@ -1,3 +1,9 @@
+/*
+ * Módulo: EEPROM
+ * Driver de la EEPROM interna del ATmega2560 (sin librería Arduino).
+ * Persiste usuarios (UID, rol, cupos de juegos) y, aparte, la lista de mercado.
+ * Cabecera con magic+version+checksum para detectar EEPROM virgen o corrupta.
+ */
 #ifndef EEPROM_DRIVER_H
 #define EEPROM_DRIVER_H
 
@@ -9,9 +15,9 @@ extern "C" {
 #endif
 
 #define EEPROM_HEADER_ADDR      0x000
-#define EEPROM_USERS_ADDR       0x010
+#define EEPROM_USERS_ADDR       0x010   /* tabla de usuarios a partir de aquí */
 #define EEPROM_USER_SIZE        ((uint8_t)sizeof(user_record_t))
-#define EEPROM_TOTAL_SIZE       0x1000
+#define EEPROM_TOTAL_SIZE       0x1000  /* 4 KB de EEPROM del ATmega2560 */
 
 void     EEPROM_Init(void);
 void     EEPROM_Task(void);

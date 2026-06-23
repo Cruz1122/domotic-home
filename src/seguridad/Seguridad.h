@@ -1,3 +1,9 @@
+/*
+ * Módulo: Seguridad
+ * Alarmas de acceso (PIR) e incendio (MQ-2 por ADC).
+ * El código admin solo se pide para activar/desactivar las alarmas.
+ * Eventos críticos se reportan por UART0.
+ */
 #ifndef SEGURIDAD_H
 #define SEGURIDAD_H
 
@@ -9,14 +15,14 @@ extern "C" {
 
 void     Seguridad_Init(void);
 void     Seguridad_Task(uint32_t now_ms);
-/* 0=inactive, 1=armed, 2=triggered latched until explicit disable. */
+/* Estado de cada alarma: 0=inactiva, 1=armada, 2=disparada (queda hasta desactivar). */
 void     Seguridad_SetAccessAlarm(uint8_t active);
 void     Seguridad_SetFireAlarm(uint8_t active);
 uint8_t  Seguridad_GetAccessState(void);
 uint8_t  Seguridad_GetFireState(void);
 uint8_t  Seguridad_IsAccessTriggered(void);
 uint8_t  Seguridad_IsFireTriggered(void);
-/* Clamped to ADC range 0..1023. */
+/* Umbral de humo en cuentas ADC (0..1023). */
 void     Seguridad_SetSmokeThreshold(uint16_t adc_val);
 const security_state_t* Seguridad_GetState(void);
 

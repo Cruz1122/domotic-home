@@ -81,9 +81,11 @@ typedef enum {
 
 typedef struct {
     uint8_t active;
-    uint8_t uid[5];
+    uint8_t uid[RFID_UID_MAX];
+    uint8_t uid_len;
     user_type_t type;
     uint8_t game_credits;
+    char label[USER_NAME_LEN];
 } user_record_t;
 ```
 

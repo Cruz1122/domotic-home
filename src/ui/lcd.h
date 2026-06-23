@@ -1,3 +1,8 @@
+/*
+ * Módulo: LCD (HD44780, 16x2, 4 bits)
+ * Driver del display de usuario. Pines RS/E/D4-D7 en PORTA (pines 22-27).
+ * RW a GND. Lo usa la UI para pintar menús y mensajes de estado.
+ */
 #ifndef LCD_H
 #define LCD_H
 

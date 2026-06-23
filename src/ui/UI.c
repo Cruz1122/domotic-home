@@ -1,3 +1,10 @@
+/*
+ * Módulo: UI — implementación
+ * Máquina de pantallas por teclado: cada ui_screen_t es una pantalla del LCD.
+ * Refresco perezoso (solo pinta si lcd_dirty) + refresco periódico para pantallas
+ * con datos que cambian solos (seguridad, ambiente, sonido, lista de mercado).
+ * El código admin (CODIGO_ADMIN) solo se pide para activar/desactivar alarmas.
+ */
 #include "UI.h"
 #include "lcd.h"
 #include "../keypad/keypad.h"
@@ -11,6 +18,7 @@
 
 #define LCD_COLS 16
 
+/* Buffer de las dos líneas del LCD; lcd_dirty indica que hay que repintar. */
 static char lcd_line1[LCD_COLS + 1];
 static char lcd_line2[LCD_COLS + 1];
 static uint8_t lcd_dirty;
@@ -19,28 +27,29 @@ static uint32_t refresh_tick;
 static char last_key;
 static uint8_t last_key_pending;
 
-/* ---- Screen state ---- */
-
+/* ---- Máquina de pantallas ----
+ * Cada estado es una pantalla del menú. No hay login: se arranca en UI_HOME.
+ */
 typedef enum {
-    UI_HOME = 0,
-    UI_SECURITY,
-    UI_SEC_CODE_INPUT,
-    UI_RFID,
-    UI_ENV,
-    UI_SERVICES,
-    UI_TEMP_INPUT,
-    UI_SOUND,
-    UI_RFID_RECHARGE_INPUT,
-    UI_MARKET,
-    UI_MARKET_ADD_PROD,
-    UI_MARKET_ADD_QTY,
-    UI_MARKET_VIEW
+    UI_HOME = 0,                 /* menú principal: A Seg / B RFID / C Amb / D Serv */
+    UI_SECURITY,                 /* alarmas de acceso e incendio */
+    UI_SEC_CODE_INPUT,           /* pide código para activar/desactivar alarmas */
+    UI_RFID,                     /* accesos RFID: puerta, garaje, juegos, enrolar, etc. */
+    UI_ENV,                      /* ambiente: temperatura e iluminación */
+    UI_SERVICES,                 /* servicios: radio, horno, mercado */
+    UI_TEMP_INPUT,               /* captura de temperatura objetivo (10-40) */
+    UI_SOUND,                    /* estado del sonido y volumen remoto */
+    UI_RFID_RECHARGE_INPUT,      /* captura de cupos a recargar (1-250) */
+    UI_MARKET,                   /* menú de lista de mercado */
+    UI_MARKET_ADD_PROD,          /* selección de producto a agregar (1-8) */
+    UI_MARKET_ADD_QTY,           /* captura de cantidad (1-99) */
+    UI_MARKET_VIEW               /* navegación de la lista de mercado */
 } ui_screen_t;
 
 static ui_screen_t screen;
 static ui_screen_t previous_screen;
 
-/* ---- Numeric input buffer ---- */
+/* ---- Buffer de entrada numérica (teclado) ---- */
 
 static char input_buf[4];
 static uint8_t input_len;
@@ -50,6 +59,7 @@ static void input_clear(void) {
     input_buf[0] = '\0';
 }
 
+/* Agrega un dígito (máx 3) a la captura numérica en curso. */
 static void input_push(char key) {
     if (input_len < 3) {
         input_buf[input_len++] = key;
@@ -57,6 +67,7 @@ static void input_push(char key) {
     }
 }
 
+/* Convierte el buffer de entrada a entero sin signo. */
 static uint16_t input_to_uint(void) {
     uint16_t val = 0;
     for (uint8_t i = 0; i < input_len; i++) {
@@ -65,19 +76,20 @@ static uint16_t input_to_uint(void) {
     return val;
 }
 
-/* ---- RFID sub-state ---- */
+/* ---- Sub-estado del menú RFID ---- */
 
 typedef enum {
-    RFID_MENU = 0,
-    RFID_ENROLL_CHOOSE
+    RFID_MENU = 0,         /* menú de operaciones RFID */
+    RFID_ENROLL_CHOOSE     /* elegir tipo de usuario a enrolar (padre/hijo) */
 } rfid_menu_state_t;
 
 static rfid_menu_state_t rfid_menu_state;
-static uint8_t  rfid_waiting;
-static uint8_t  rfid_showing_result;
+static uint8_t  rfid_waiting;        /* esperando a que el usuario acerque la tarjeta */
+static uint8_t  rfid_showing_result; /* mostrando el resultado de la operación */
 static uint32_t rfid_result_tick;
 
-/* ---- Security code state ---- */
+/* ---- Estado de la captura de código de alarma ----
+ * sec_code_target: 1=alarma de acceso, 2=alarma de incendio. */
 static uint8_t  sec_code_target;
 static uint8_t  sec_code_error;
 
@@ -85,8 +97,9 @@ static uint8_t  sec_code_error;
 static uint8_t market_add_product;
 static uint8_t market_view_index;
 
-/* ---- LCD buffer helpers ---- */
+/* ---- Helpers del buffer del LCD ---- */
 
+/* Actualiza las dos líneas y marca el LCD como sucio para repintar. */
 static void ui_set_lcd(const char *line1, const char *line2) {
     strncpy(lcd_line1, line1, LCD_COLS);
     lcd_line1[LCD_COLS] = '\0';
@@ -95,6 +108,7 @@ static void ui_set_lcd(const char *line1, const char *line2) {
     lcd_dirty = 1;
 }
 
+/* Pinta al LCD solo si cambió el contenido (refresco perezoso). */
 static void ui_refresh(void) {
     if (!lcd_dirty) return;
     LCD_WriteTwoLines(lcd_line1, lcd_line2);
@@ -114,8 +128,8 @@ static void u8_to_str(char *buf, uint8_t val) {
     buf[j] = '\0';
 }
 
-/* ---- Render by screen state ---- */
-
+/* ---- Render por pantalla ----
+ * Construye el texto de cada ui_screen_t en el buffer del LCD. */
 static void ui_render(void) {
     if (screen == UI_RFID && rfid_showing_result) return;
 
@@ -310,8 +324,8 @@ static void ui_render(void) {
     }
 }
 
-/* ---- Key handling ---- */
-
+/* ---- Manejo de teclas ----
+ * Recibe la tecla del teclado y cambia de pantalla / dispara acciones según el estado. */
 static void ui_handle_key(char key) {
     UART_WriteString(SER_TECLADO "Tecla: ");
     UART_WriteChar(key);
@@ -319,6 +333,7 @@ static void ui_handle_key(char key) {
 
     switch (screen) {
         case UI_HOME:
+            /* Menú principal: A=Seguridad, B=RFID, C=Ambiente, D=Servicios. */
             if (key == 'A') {
                 previous_screen = screen;
                 screen = UI_SECURITY;
@@ -338,6 +353,7 @@ static void ui_handle_key(char key) {
             break;
 
         case UI_SECURITY:
+            /* 1=activar/desactivar alarma de acceso, 2=lo mismo con incendio. */
             if (key == '*') {
                 previous_screen = screen;
                 screen = UI_HOME;
@@ -355,6 +371,7 @@ static void ui_handle_key(char key) {
             break;
 
         case UI_SEC_CODE_INPUT:
+            /* Captura el código admin. Con # valida: si es correcto conmuta la alarma. */
             if (sec_code_error) {
                 if (key == '*') {
                     sec_code_error = 0;
@@ -391,6 +408,7 @@ static void ui_handle_key(char key) {
             break;
 
         case UI_RFID:
+            /* Si está esperando tarjeta o mostrando resultado, solo acepta cancelar. */
             if (rfid_waiting || rfid_showing_result) {
                 if (key == '*') {
                     Accesos_SetMode(ACCESS_MODE_NORMAL);
@@ -399,6 +417,7 @@ static void ui_handle_key(char key) {
                     rfid_menu_state = RFID_MENU;
                 }
             } else {
+                /* Menú RFID: 1 puerta, 2 garaje, 3 juegos, 4 enrolar, 5 borrar, 6 recargar. */
                 switch (rfid_menu_state) {
                     case RFID_MENU:
                         if (key == '*') {
@@ -456,6 +475,7 @@ static void ui_handle_key(char key) {
             break;
 
         case UI_TEMP_INPUT:
+            /* Captura temperatura objetivo; valida rango 10-40 al confirmar con #. */
             if (key >= '0' && key <= '9') {
                 input_push(key);
             } else if (key == '*') {
@@ -476,6 +496,7 @@ static void ui_handle_key(char key) {
             break;
 
         case UI_SOUND:
+            /* Sonido: 1 enciende, 2 apaga. El volumen se muestra desde el setpoint remoto. */
             if (key == '*') {
                 screen = previous_screen;
             } else if (key == '1') {
@@ -538,6 +559,7 @@ static void ui_handle_key(char key) {
             break;
 
         case UI_MARKET_ADD_QTY:
+            /* Captura la cantidad (1-99) del producto elegido y lo agrega a la lista. */
             if (key >= '0' && key <= '9') {
                 input_push(key);
             } else if (key == '*') {
@@ -581,6 +603,7 @@ static void ui_handle_key(char key) {
             break;
 
         case UI_RFID_RECHARGE_INPUT:
+            /* Captura cuántos cupos recargar (1-250) y pone a Accesos en modo recarga. */
             if (key >= '0' && key <= '9') {
                 input_push(key);
             } else if (key == '*') {
@@ -610,11 +633,12 @@ static void ui_handle_key(char key) {
     }
 }
 
-/* ---- Public API ---- */
+/* ---- API pública ---- */
 
 void UI_Init(void) {
     Keypad_Init();
     LCD_Init();
+    /* No hay login: se arranca directo en el menú principal. */
     screen = UI_HOME;
     previous_screen = UI_HOME;
     rfid_menu_state = RFID_MENU;
@@ -634,6 +658,7 @@ void UI_Init(void) {
 void UI_Task(uint32_t now_ms) {
     char key;
 
+    /* Barrido del teclado (no bloqueante) y despacho de la tecla si hay una nueva. */
     Keypad_Scan(now_ms);
     key = Keypad_GetKey();
     if (key != '\0') {
@@ -643,7 +668,7 @@ void UI_Task(uint32_t now_ms) {
         ui_render();
     }
 
-    /* RFID result polling (always active) */
+    /* Resultado de una operación RFID: lo muestra 2 s y luego vuelve al menú. */
     if (screen == UI_RFID && rfid_waiting && !rfid_showing_result) {
         char msg[17];
         if (Accesos_GetResultMsg(msg, sizeof(msg))) {
@@ -659,7 +684,7 @@ void UI_Task(uint32_t now_ms) {
         ui_render();
     }
 
-    /* Periodic refresh for dynamic screens */
+    /* Refresco periódico de pantallas con datos que cambian solos. */
     if (Timer_Expired(refresh_tick, 500)) {
         refresh_tick = now_ms;
         if (screen == UI_SECURITY || screen == UI_ENV || screen == UI_SOUND || screen == UI_MARKET_VIEW) {

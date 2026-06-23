@@ -1,3 +1,10 @@
+/*
+ * Módulo: UART
+ * Dos canales serie con buffers circulares por interrupción:
+ *   UART0 -> debug y eventos del sistema ([TAG] mensaje).
+ *   UART1 -> comandos remotos desde el Virtual Terminal (RADIO/HORNO/MERCADO).
+ * Ningún envío bloquea: la ISR UDRE vacía el buffer de transmisión.
+ */
 #ifndef UART_H
 #define UART_H
 
@@ -7,7 +14,7 @@
 extern "C" {
 #endif
 
-/* UART0 - debug del sistema */
+/* UART0 - debug y eventos del sistema */
 void UART_Init(uint32_t baud);
 void UART_Task(void);
 void UART_WriteString(const char *str);
@@ -27,24 +34,6 @@ void UART1_WriteDecimal(uint32_t num);
 void UART1_WriteEvent(const char *tag, const char *msg);
 uint8_t UART1_Available(void);
 char UART1_ReadChar(void);
-
-/* UART2 - puerto hardware libre / uso futuro */
-void UART2_Init(uint32_t baud);
-void UART2_WriteChar(char c);
-void UART2_WriteString(const char *str);
-void UART2_WriteDecimal(uint32_t num);
-void UART2_WriteEvent(const char *tag, const char *msg);
-uint8_t UART2_Available(void);
-char    UART2_ReadChar(void);
-
-/* UART3 - puerto hardware libre / uso futuro */
-void UART3_Init(uint32_t baud);
-void UART3_WriteChar(char c);
-void UART3_WriteString(const char *str);
-void UART3_WriteDecimal(uint32_t num);
-void UART3_WriteEvent(const char *tag, const char *msg);
-uint8_t UART3_Available(void);
-char    UART3_ReadChar(void);
 
 #ifdef __cplusplus
 }

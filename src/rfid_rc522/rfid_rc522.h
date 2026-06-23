@@ -1,3 +1,13 @@
+/*
+ * Módulo: RFID (RC522)
+ * Driver híbrrido de lectura de UID:
+ *  - FUENTE 1: RC522 real por SPI (placa física). Si al arrancar no detecta
+ *    el chip, se autodesactiva.
+ *  - FUENTE 2: inyección de UID por UART0 (simulación Proteus): se teclea el
+ *    UID en hex + Enter en el Virtual Terminal.
+ * Así el MISMO firmware sirve en placa real y en Proteus (definir RFID_SIMULATED=1
+ * deshabilita el RC522 y deja solo la inyección por UART).
+ */
 #ifndef RFID_RC522_H
 #define RFID_RC522_H
 
@@ -8,21 +18,7 @@
 extern "C" {
 #endif
 
-/* ------------------------------------------------------------------
- *  Configuracion de fuentes de UID
- *
- *  El driver es hibrido: puede leer de un RC522 real por SPI y/o
- *  aceptar UIDs inyectados por la UART consola. Esto permite usar el
- *  MISMO firmware en la placa fisica (RC522 presente) y en Proteus
- *  (sin RC522: se teclea el UID hex + Enter en el Virtual Terminal).
- *
- *  - RFID_USE_RC522   : compila el driver SPI real. Si en el arranque
- *                       no se detecta el chip, se autodesactiva.
- *  - RFID_UART_INJECT : compila la inyeccion de UID por UART consola.
- *
- *  Compatibilidad: definir RFID_SIMULATED=1 deshabilita el RC522 real
- *  y deja solo la inyeccion por UART (modo Proteus puro).
- * ------------------------------------------------------------------ */
+/* Configuración de fuentes de UID (ver cabecera del archivo). */
 #ifndef RFID_USE_RC522
 #define RFID_USE_RC522    1
 #endif
@@ -37,6 +33,7 @@ extern "C" {
 #endif
 #endif
 
+/* Resultado de una lectura de UID. NO_CARD = no hay tarjeta cerca. */
 typedef enum {
     RFID_OK = 0,
     RFID_NO_CARD,

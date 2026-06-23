@@ -1,3 +1,9 @@
+/*
+ * Módulo: Servo (garaje) — implementación
+ * PWM de 50 Hz por software sobre Timer1: la ISR COMPA sube el pulso y la
+ * ISR COMPB lo baja, dando 1-2 ms según el ángulo (0° cerrado, 90° abierto).
+ * Así se obtiene la señal RC sin tocar el Timer4 del PWM de 8 bits.
+ */
 #include "servo_pwm.h"
 #include "../gpio/gpio.h"
 #include "../common/Definiciones.h"
@@ -5,7 +11,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-/* Safe servo timing, in microseconds, for 50 Hz PWM on Timer1. */
+/* Tiempos seguros del servo, en microsegundos, para 50 Hz sobre Timer1. */
 #define SERVO_PIN               PIN_PWM_SERVO_GARAGE
 #define SERVO_PERIOD_US         20000U
 #define SERVO_PULSE_CLOSED_US    1000U
@@ -19,6 +25,7 @@
 
 static volatile uint16_t target_pulse = SERVO_PULSE_MIN;
 
+/* Convierte un ángulo (0-180°) en ancho de pulso (1-2 ms). */
 static uint16_t angle_to_pulse(uint8_t degrees) {
     if (degrees > 180) degrees = 180;
     return SERVO_PULSE_MIN + ((uint32_t)(SERVO_PULSE_MAX - SERVO_PULSE_MIN) * degrees / 180);
@@ -28,6 +35,7 @@ void ServoPwm_Init(void) {
     GPIO_SetPinMode(SERVO_PIN, GPIO_OUT);
     GPIO_WritePin(SERVO_PIN, GPIO_LOW);
 
+    /* Timer1 CTC: TOP=20 ms (50 Hz). La Interrupción COMPA arranca el pulso. */
     TCCR1A = 0;
     TCCR1B = (1 << WGM12) | (1 << CS11);
     OCR1A = SERVO_50HZ_TOP;
@@ -37,6 +45,7 @@ void ServoPwm_Init(void) {
     UART_WriteEvent(SER_SISTEMA, "Servo Timer1 init OK");
 }
 
+/* Cambia el ángulo del servo de forma atómica (la ISR lee target_pulse). */
 void ServoPwm_SetAngle(uint8_t degrees) {
     uint16_t pulse = angle_to_pulse(degrees);
     uint8_t sreg = SREG;
@@ -50,6 +59,7 @@ void ServoPwm_SetAngle(uint8_t degrees) {
     UART_Newline();
 }
 
+/* Atajos de apertura/cierre del garaje. */
 void ServoPwm_Open(void) {
     UART_WriteEvent(SER_SISTEMA, "Servo OPEN 90deg");
     ServoPwm_SetAngle(90);
@@ -60,11 +70,13 @@ void ServoPwm_Close(void) {
     ServoPwm_SetAngle(0);
 }
 
+/* ISR de fin de periodo: sube el pulso y carga el ancho deseado en OCR1B. */
 ISR(TIMER1_COMPA_vect) {
     GPIO_WritePin(SERVO_PIN, GPIO_HIGH);
     OCR1B = target_pulse;
 }
 
+/* ISR de comparación B: baja el pulso al cumplir el ancho (fin del ancho). */
 ISR(TIMER1_COMPB_vect) {
     GPIO_WritePin(SERVO_PIN, GPIO_LOW);
 }

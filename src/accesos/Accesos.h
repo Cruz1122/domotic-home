@@ -1,3 +1,9 @@
+/*
+ * Módulo: Accesos
+ * Gestiona RFID: validación de usuarios, enrolamiento, borrado, recarga de cupos,
+ * puerta principal (LED imán), garaje (servo) y sala de juegos (cupos en EEPROM).
+ * No bloquea esperando tarjeta: consume el UID que deja el driver RFID.
+ */
 #ifndef ACCESOS_H
 #define ACCESOS_H
 
@@ -7,8 +13,9 @@
 extern "C" {
 #endif
 
+/* Modo de acceso en curso: determina qué se hace con la próxima tarjeta leída. */
 typedef enum {
-    ACCESS_MODE_NORMAL = 0,
+    ACCESS_MODE_NORMAL = 0,         /* acceso a puerta principal por defecto */
     ACCESS_MODE_MAIN_DOOR,
     ACCESS_MODE_GARAGE,
     ACCESS_MODE_GAME_ROOM,

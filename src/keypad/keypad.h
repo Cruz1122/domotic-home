@@ -1,3 +1,8 @@
+/*
+ * Módulo: Teclado matricial 4x4
+ * Lectura no bloqueante por rotación de filas + interrupción PCINT2 en columnas.
+ * Pines: filas 34-37 (PORTC), columnas 62-65 (PORTK). Devuelve una tecla por pulsación.
+ */
 #ifndef KEYPAD_H
 #define KEYPAD_H
 

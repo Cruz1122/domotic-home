@@ -1,3 +1,9 @@
+/*
+ * Módulo: UART — implementación
+ * Buffers circulares de TX/RX por interrupción para UART0 y UART1 (8N1).
+ * TX: se encola y la ISR UDRE transmite cuando el registro queda libre.
+ * RX: la ISR RX guarda el byte; el resto del sistema lee sin bloquear.
+ */
 #include "uart.h"
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -5,32 +11,20 @@
 #define TX_BUF_SIZE 256
 #define RX_BUF_SIZE 32
 
-/* UART0 */
+/* UART0 (debug/eventos): buffers de transmisión y recepción. */
 static volatile uint8_t tx0_buffer[TX_BUF_SIZE];
 static volatile uint8_t tx0_head, tx0_tail;
 static volatile uint8_t rx0_buffer[RX_BUF_SIZE];
 static volatile uint8_t rx0_head, rx0_tail;
 
-/* UART1 */
+/* UART1 (comandos remotos): buffers de transmisión y recepción. */
 static volatile uint8_t tx1_buffer[TX_BUF_SIZE];
 static volatile uint8_t tx1_head, tx1_tail;
 static volatile uint8_t rx1_buffer[RX_BUF_SIZE];
 static volatile uint8_t rx1_head, rx1_tail;
 
-/* UART2 - libre / uso futuro */
-static volatile uint8_t tx2_buffer[TX_BUF_SIZE];
-static volatile uint8_t tx2_head, tx2_tail;
-static volatile uint8_t rx2_buffer[RX_BUF_SIZE];
-static volatile uint8_t rx2_head, rx2_tail;
-
-/* UART3 - libre / uso futuro */
-static volatile uint8_t tx3_buffer[TX_BUF_SIZE];
-static volatile uint8_t tx3_head, tx3_tail;
-static volatile uint8_t rx3_buffer[RX_BUF_SIZE];
-static volatile uint8_t rx3_head, rx3_tail;
-
 /* ============================================================
- *  UART0
+ *  UART0 — debug y eventos del sistema
  * ============================================================ */
 
 void UART_Init(uint32_t baud) {
@@ -45,6 +39,7 @@ void UART_Init(uint32_t baud) {
 
 void UART_Task(void) {}
 
+/* Encola un char para TX. Si el buffer está lleno, se descarta (no bloquea). */
 void UART_WriteChar(char c) {
     uint8_t next = (uint8_t)(tx0_head + 1) % TX_BUF_SIZE;
     if (next == tx0_tail) return;
@@ -69,6 +64,7 @@ void UART_WriteDecimal(uint32_t num) {
     while (i > 0) { UART_WriteChar(buf[--i]); }
 }
 
+/* Escribe un evento con formato "[TAG]mensaje". */
 void UART_WriteEvent(const char *tag, const char *msg) {
     UART_WriteString(tag); UART_WriteString(msg); UART_Newline();
 }
@@ -86,12 +82,14 @@ char UART_ReadChar(void) {
     return c;
 }
 
+/* ISR RX de UART0: guarda el byte recibido si hay espacio en el buffer. */
 ISR(USART0_RX_vect) {
     uint8_t data = UDR0;
     uint8_t next = (uint8_t)(rx0_head + 1) % RX_BUF_SIZE;
     if (next != rx0_tail) { rx0_buffer[rx0_head] = data; rx0_head = next; }
 }
 
+/* ISR de registro de TX vacío: envía el siguiente byte encolado o apaga la IRQ. */
 ISR(USART0_UDRE_vect) {
     if (tx0_head != tx0_tail) {
         UDR0 = tx0_buffer[tx0_tail];
@@ -100,7 +98,7 @@ ISR(USART0_UDRE_vect) {
 }
 
 /* ============================================================
- *  UART1 - celular
+ *  UART1 — comandos remotos (Virtual Terminal / celular)
  * ============================================================ */
 
 void UART1_Init(uint32_t baud) {
@@ -111,7 +109,6 @@ void UART1_Init(uint32_t baud) {
     UCSR1C = (1 << UCSZ11) | (1 << UCSZ10);
     tx1_head = 0; tx1_tail = 0;
     rx1_head = 0; rx1_tail = 0;
-    PORTD |= (1 << PD2);
 }
 
 void UART1_WriteChar(char c) {
@@ -148,6 +145,7 @@ char UART1_ReadChar(void) {
     return c;
 }
 
+/* ISR RX de UART1: recibe los comandos remotos que escribe el usuario. */
 ISR(USART1_RX_vect) {
     uint8_t data = UDR1;
     uint8_t next = (uint8_t)(rx1_head + 1) % RX_BUF_SIZE;
@@ -159,128 +157,4 @@ ISR(USART1_UDRE_vect) {
         UDR1 = tx1_buffer[tx1_tail];
         tx1_tail = (uint8_t)(tx1_tail + 1) % TX_BUF_SIZE;
     } else { UCSR1B &= ~(1 << UDRIE1); }
-}
-
-/* ============================================================
- *  UART2 - libre / uso futuro
- * ============================================================ */
-
-void UART2_Init(uint32_t baud) {
-    uint16_t ubrr = (uint16_t)(F_CPU / 16 / baud - 1);
-    UBRR2H = (uint8_t)(ubrr >> 8);
-    UBRR2L = (uint8_t)(ubrr);
-    UCSR2B = (1 << TXEN2) | (1 << RXEN2) | (1 << RXCIE2);
-    UCSR2C = (1 << UCSZ21) | (1 << UCSZ20);
-    tx2_head = 0; tx2_tail = 0;
-    rx2_head = 0; rx2_tail = 0;
-    PORTH |= (1 << PH0);
-}
-
-void UART2_WriteChar(char c) {
-    uint8_t next = (uint8_t)(tx2_head + 1) % TX_BUF_SIZE;
-    if (next == tx2_tail) return;
-    tx2_buffer[tx2_head] = (uint8_t)c;
-    tx2_head = next;
-    UCSR2B |= (1 << UDRIE2);
-}
-
-void UART2_WriteString(const char *str) { while (*str) { UART2_WriteChar(*str++); } }
-
-void UART2_WriteDecimal(uint32_t num) {
-    char buf[10]; uint8_t i = 0;
-    if (num == 0) { UART2_WriteChar('0'); return; }
-    while (num > 0) { buf[i++] = (char)('0' + (num % 10)); num /= 10; }
-    while (i > 0) { UART2_WriteChar(buf[--i]); }
-}
-
-void UART2_WriteEvent(const char *tag, const char *msg) {
-    UART2_WriteString(tag); UART2_WriteString(msg); UART2_WriteChar('\r'); UART2_WriteChar('\n');
-}
-
-uint8_t UART2_Available(void) {
-    uint8_t h = rx2_head; uint8_t t = rx2_tail;
-    if (h >= t) return h - t;
-    return (RX_BUF_SIZE - t) + h;
-}
-
-char UART2_ReadChar(void) {
-    if (rx2_head == rx2_tail) return '\0';
-    char c = (char)rx2_buffer[rx2_tail];
-    rx2_tail = (uint8_t)(rx2_tail + 1) % RX_BUF_SIZE;
-    return c;
-}
-
-ISR(USART2_RX_vect) {
-    uint8_t data = UDR2;
-    uint8_t next = (uint8_t)(rx2_head + 1) % RX_BUF_SIZE;
-    if (next != rx2_tail) { rx2_buffer[rx2_head] = data; rx2_head = next; }
-}
-
-ISR(USART2_UDRE_vect) {
-    if (tx2_head != tx2_tail) {
-        UDR2 = tx2_buffer[tx2_tail];
-        tx2_tail = (uint8_t)(tx2_tail + 1) % TX_BUF_SIZE;
-    } else { UCSR2B &= ~(1 << UDRIE2); }
-}
-
-/* ============================================================
- *  UART3 - libre / uso futuro
- * ============================================================ */
-
-void UART3_Init(uint32_t baud) {
-    uint16_t ubrr = (uint16_t)(F_CPU / 16 / baud - 1);
-    UBRR3H = (uint8_t)(ubrr >> 8);
-    UBRR3L = (uint8_t)(ubrr);
-    UCSR3B = (1 << TXEN3) | (1 << RXEN3) | (1 << RXCIE3);
-    UCSR3C = (1 << UCSZ31) | (1 << UCSZ30);
-    tx3_head = 0; tx3_tail = 0;
-    rx3_head = 0; rx3_tail = 0;
-    PORTJ |= (1 << PJ0);
-}
-
-void UART3_WriteChar(char c) {
-    uint8_t next = (uint8_t)(tx3_head + 1) % TX_BUF_SIZE;
-    if (next == tx3_tail) return;
-    tx3_buffer[tx3_head] = (uint8_t)c;
-    tx3_head = next;
-    UCSR3B |= (1 << UDRIE3);
-}
-
-void UART3_WriteString(const char *str) { while (*str) { UART3_WriteChar(*str++); } }
-
-void UART3_WriteDecimal(uint32_t num) {
-    char buf[10]; uint8_t i = 0;
-    if (num == 0) { UART3_WriteChar('0'); return; }
-    while (num > 0) { buf[i++] = (char)('0' + (num % 10)); num /= 10; }
-    while (i > 0) { UART3_WriteChar(buf[--i]); }
-}
-
-void UART3_WriteEvent(const char *tag, const char *msg) {
-    UART3_WriteString(tag); UART3_WriteString(msg); UART3_WriteChar('\r'); UART3_WriteChar('\n');
-}
-
-uint8_t UART3_Available(void) {
-    uint8_t h = rx3_head; uint8_t t = rx3_tail;
-    if (h >= t) return h - t;
-    return (RX_BUF_SIZE - t) + h;
-}
-
-char UART3_ReadChar(void) {
-    if (rx3_head == rx3_tail) return '\0';
-    char c = (char)rx3_buffer[rx3_tail];
-    rx3_tail = (uint8_t)(rx3_tail + 1) % RX_BUF_SIZE;
-    return c;
-}
-
-ISR(USART3_RX_vect) {
-    uint8_t data = UDR3;
-    uint8_t next = (uint8_t)(rx3_head + 1) % RX_BUF_SIZE;
-    if (next != rx3_tail) { rx3_buffer[rx3_head] = data; rx3_head = next; }
-}
-
-ISR(USART3_UDRE_vect) {
-    if (tx3_head != tx3_tail) {
-        UDR3 = tx3_buffer[tx3_tail];
-        tx3_tail = (uint8_t)(tx3_tail + 1) % TX_BUF_SIZE;
-    } else { UCSR3B &= ~(1 << UDRIE3); }
 }

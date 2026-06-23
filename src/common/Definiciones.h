@@ -1,3 +1,9 @@
+/*
+ * Módulo: Definiciones comunes
+ * Centraliza pines del ATmega2560, constantes del sistema, tipos globales
+ * y macros de eventos seriales. No contiene lógica ni variables.
+ * Todos los módulos dependen de este archivo, por eso solo se edita de común acuerdo.
+ */
 #ifndef DEFINICIONES_H
 #define DEFINICIONES_H
 
@@ -93,7 +99,7 @@
 
 #define PIN_FIRE_LED              11
 
-#define PIN_DOOR_LED              PIN_PWM_DOOR_LED
+#define PIN_DOOR_LED              43
 #define PIN_BUZZER_ALARM          PIN_PWM_BUZZER_ALARM
 
 
@@ -112,6 +118,8 @@
 #define MARKET_MAX_ITEMS           8
 #define MARKET_PRODUCT_COUNT        8
 
+/* EEPROM: guarda usuarios (UID, rol, cupos) y, aparte en 0x100, la lista de mercado.
+ * La cabecera (magic + version + checksum) detecta EEPROM virgen o corrupta. */
 #define EEPROM_MAGIC_0           'D'
 #define EEPROM_MAGIC_1           'H'
 #define EEPROM_VERSION             3
@@ -123,6 +131,7 @@
 #define REMOTE_LINE_MAX            64
 #define REMOTE_MAX_TOKENS           5
 
+/* Identificadores de UART: 0 = debug/eventos, 1 = comandos remotos (Virtual Terminal). */
 #define UART_DEBUG_ID               0
 #define UART_REMOTE_ID              1
 
@@ -133,6 +142,7 @@
 
 /* ============================================================
  *  TIPOS GLOBALES — Estados de aplicación
+ *  app_state_t: estados del menú principal de la UI.
  *  Fuente: docs/01_ARQUITECTURA.md
  * ============================================================ */
 
@@ -147,12 +157,14 @@ typedef enum {
     APP_ERROR_SCREEN
 } app_state_t;
 
+/* Rol de usuario: vacio (slot libre), padre (admin) o hijo (cupos limitados). */
 typedef uint8_t user_type_t;
 
 #define USER_EMPTY   0
 #define USER_PARENT  1
 #define USER_CHILD   2
 
+/* Resumen del estado de alarmas, sensores y humo (lo publica Seguridad). */
 typedef struct {
     uint8_t access_enabled;
     uint8_t fire_enabled;
@@ -164,6 +176,7 @@ typedef struct {
     uint8_t smoke_percent;
 } security_state_t;
 
+/* Estado del horno: encendido, temperatura objetivo y cuenta regresiva. */
 typedef struct {
     uint8_t enabled;
     uint16_t target_temp_c;
@@ -171,11 +184,13 @@ typedef struct {
     uint32_t end_tick_ms;
 } oven_state_t;
 
+/* Estado del equipo de sonido: encendido y volumen remoto (0-100). */
 typedef struct {
     uint8_t enabled;
     uint8_t volume_percent;
 } sound_state_t;
 
+/* Registro de usuario guardado en EEPROM (UID, rol y cupos de juegos). */
 typedef struct {
     uint8_t active;
     uint8_t uid[RFID_UID_MAX];
@@ -185,11 +200,13 @@ typedef struct {
     char label[USER_NAME_LEN];
 } user_record_t;
 
+/* Item de la lista de mercado (producto + cantidad). */
 typedef struct {
     uint8_t product_id;
     uint8_t quantity;
 } market_item_t;
 
+/* Cabecera de validez de la EEPROM: magic, version, contador y checksum. */
 typedef struct {
     uint8_t magic0;
     uint8_t magic1;

@@ -1,26 +1,26 @@
+/*
+ * Módulo: Teclado matricial 4x4 — implementación
+ *
+ * Filas:    D34-D37 = PORTC PC3-PC0
+ * Columnas: A8-A11  = PORTK PK0-PK3 = PCINT16-19
+ *
+ * Funcionamiento:
+ *   Rotación continua del 0 por filas (tres 1, un 0 rotando).
+ *   PCINT2 detecta cambio en columnas (flanco de pulsación).
+ *
+ *   Máquina de estados (no bloqueante, antirrebote 20 ms):
+ *     IDLE             - rotación normal, espera bandera PCINT
+ *     DEBOUNCE_PRESS   - antirrebote 20 ms, luego scan completo
+ *     PRESSED          - tecla reportada, espera liberación
+ *     DEBOUNCE_RELEASE - antirrebote 20 ms tras liberar
+ *
+ *   Un solo evento por pulsación mantenida.
+ */
 #include "keypad.h"
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <stdint.h>
-
-/*
- * Filas:   D34-D37 = PORTC PC3-PC0
- * Columnas: A8-A11  = PORTK PK0-PK3 = PCINT16-19
- *
- * ARQUITECTURA (herencia del proyecto domotic-home industrial):
- *
- *   Rotacion continua del 0 por filas (tres 1, un 0 rotando).
- *   PCINT2 detecta cambio en columnas (flanco de pulsacion).
- *
- *   Maquina de estados:
- *     IDLE             - rotacion normal, espera bandera PCINT
- *     DEBOUNCE_PRESS   - antirrebote 20 ms, luego scan completo
- *     PRESSED          - tecla reportada, espera liberacion
- *     DEBOUNCE_RELEASE - antirrebote 20 ms tras liberar
- *
- *   Un solo evento por pulsacion mantenida.
- */
 
 /* =========================================================
    CONFIGURACION
@@ -137,11 +137,8 @@ static uint8_t KEYPAD_take_edge(void)
     return edge;
 }
 
-/* =========================================================
-   INTERRUPCION PCINT2
-   Detecta cambio en columnas PK0-PK3 (PCINT16-19).
-   ========================================================= */
-
+/* Interrupción PCINT2: detecta cambio en columnas PK0-PK3 (PCINT16-19).
+ * Solo marca la bandera; el antirrebote y el scan se procesan fuera de la ISR. */
 ISR(PCINT2_vect)
 {
     g_edge_flag = 1;
@@ -151,13 +148,15 @@ ISR(PCINT2_vect)
    API PUBLICA
    ========================================================= */
 
+/* Configura filas como salidas, columnas como entradas con pull-up y
+ * habilita PCINT2 en las columnas. Deshabilita JTAG para liberar PC2-PC3. */
 void Keypad_Init(void)
 {
     uint8_t jtd;
 
     cli();
 
-    /* JTAG disable: PORTC PC2-PC3 comparten con JTAG */
+    /* JTAG disable: PORTC PC2-PC3 comparten con JTAG. */
     jtd = MCUCR | (1U << JTD);
     MCUCR = jtd;
     MCUCR = jtd;
@@ -193,16 +192,17 @@ void Keypad_Scan(uint32_t now_ms)
 {
     uint32_t elapsed;
 
-    /* ---- Rotacion continua (todos los estados) ---- */
+    /* ---- Rotación continua de filas (corre en todos los estados) ---- */
     if ((uint32_t)(now_ms - g_last_row_ms) >= 2U) {
         g_last_row_ms = now_ms;
         uint8_t next = (uint8_t)((g_active_row + 1U) & 0x03U);
         KEYPAD_drive_row(next);
     }
 
-    /* ---- Maquina de estados ---- */
+    /* ---- Máquina de estados de antirrebote ---- */
     switch (g_state) {
         case KEYPAD_IDLE:
+            /* Espera la bandera de PCINT para empezar el antirrebote. */
             if (KEYPAD_take_edge()) {
                 g_debounce_start = now_ms;
                 g_state = KEYPAD_DEBOUNCE_PRESS;
@@ -210,6 +210,7 @@ void Keypad_Scan(uint32_t now_ms)
             break;
 
         case KEYPAD_DEBOUNCE_PRESS:
+            /* Tras 20 ms hace el scan completo y reporta la tecla si es válida. */
             elapsed = (uint32_t)(now_ms - g_debounce_start);
             if (elapsed >= DEBOUNCE_MS) {
                 char key = KEYPAD_scan_key();
@@ -224,6 +225,7 @@ void Keypad_Scan(uint32_t now_ms)
             break;
 
         case KEYPAD_PRESSED:
+            /* Espera a que se suelte la tecla antes de aceptar otra. */
             if (KEYPAD_scan_key() == 0) {
                 g_debounce_start = now_ms;
                 g_state = KEYPAD_DEBOUNCE_RELEASE;
@@ -231,6 +233,7 @@ void Keypad_Scan(uint32_t now_ms)
             break;
 
         case KEYPAD_DEBOUNCE_RELEASE:
+            /* Antirrebote de liberación: vuelve a IDLE solo si sigue soltada. */
             elapsed = (uint32_t)(now_ms - g_debounce_start);
             if (elapsed >= DEBOUNCE_MS) {
                 if (KEYPAD_scan_key() == 0) {

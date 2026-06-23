@@ -27,6 +27,7 @@
 #include "src/test/test_bootstrap.h"
 
 void setup(void) {
+    /* Drivers y periféricos primero, luego módulos de aplicación, y la UI al final. */
     UART_Init(UART_BAUD_DEFAULT);
     UART_WriteEvent(SER_BOOT, "Sistema iniciado");
     GPIO_Init();
@@ -49,6 +50,8 @@ void setup(void) {
 }
 
 void loop(void) {
+    /* Tareas cooperativas: cada una corre rápido y devuelve el control.
+     * Ninguna bloquea; todas usan now_ms como reloj (Timer_Millis). */
     uint32_t now_ms = Timer_Millis();
 
     RFID_Task(now_ms);

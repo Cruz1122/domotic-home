@@ -1,3 +1,8 @@
+/*
+ * Módulo: ADC — implementación
+ * ADC de 10 bits, prescaler /128 (REFS0 = AVcc). Arranque/polling no bloqueante:
+ * el módulo llama ADC_Start y revisa ADC_Poll en ciclos posteriores.
+ */
 #include "adc.h"
 #include <avr/io.h>
 
@@ -13,6 +18,7 @@ void ADC_Init(void) {
     adc_busy = 0;
 }
 
+/* Arranca una conversión en el canal indicado. No espera el resultado. */
 void ADC_Start(uint8_t channel) {
     if (!adc_channel_valid(channel)) {
         return;
@@ -28,6 +34,7 @@ void ADC_Start(uint8_t channel) {
     ADCSRA |= (1 << ADSC);
 }
 
+/* Devuelve 1 si la conversión terminó y entrega el valor en *out_value. */
 uint8_t ADC_Poll(uint16_t *out_value) {
     if (!adc_busy) {
         return 0;
@@ -47,18 +54,4 @@ uint8_t ADC_Poll(uint16_t *out_value) {
 
 uint8_t ADC_IsBusy(void) {
     return (adc_busy != 0U) || ((ADCSRA & (1 << ADSC)) != 0U);
-}
-
-uint16_t ADC_Read(uint8_t channel) {
-    uint16_t value = 0;
-    uint16_t guard = 0xFFFFU;
-
-    ADC_Start(channel);
-    while (guard-- > 0U) {
-        if (ADC_Poll(&value)) {
-            return value;
-        }
-    }
-
-    return 0xFFFFU;
 }
