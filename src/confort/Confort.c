@@ -14,7 +14,7 @@
 #include "../uart/uart.h"
 
 #define LIGHT_INTERVAL_MS   200
-#define TEMP_INTERVAL_MS    50
+#define TEMP_INTERVAL_MS   300
 #define TEMP_DEFAULT         22
 #define TEMP_AMBIENT         20
 #define TEMP_HYSTERESIS_C     1   /* banda de histéresis para evitar oscilación */
@@ -240,6 +240,8 @@ static void Confort_ServiceAdc(uint32_t now_ms) {
             adc_request = ADC_REQ_NONE;
             Confort_ProcessAdcSample(channel, raw);
             light_tick = now_ms;
+        } else if (!ADC_IsBusy()) {
+            adc_request = ADC_REQ_NONE;
         }
         return;
     }

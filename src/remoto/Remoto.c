@@ -560,8 +560,15 @@ static void oven_stop(void) {
 static void process_command(void) {
     char *tokens[REMOTE_MAX_TOKENS];
     uint8_t count;
+    char dbg_buf[REMOTE_LINE_MAX];
 
     cmd_buf[cmd_len] = '\0';
+    /* Copia para diagnostico antes de que split_tokens modifique cmd_buf. */
+    for (count = 0; count < cmd_len && count < (uint8_t)(REMOTE_LINE_MAX - 1); count++) {
+        dbg_buf[count] = cmd_buf[count];
+    }
+    dbg_buf[count] = '\0';
+
     count = split_tokens(cmd_buf, tokens, REMOTE_MAX_TOKENS);
 
     if (count == 0) {
@@ -588,7 +595,14 @@ static void process_command(void) {
         return;
     }
 
-    remote_err(MOD_SISTEMA, "Comando desconocido. Escriba HELP");
+    /* Error + diagnostico: muestra los primeros hasta REMOTE_LINE_MAX caracteres
+       tal cual llegaron (sin mayusculas ni separacion). */
+    remote_err(MOD_SISTEMA, "Comando desconocido.");
+    UART1_WriteString(SER_SISTEMA "Recibido: \"");
+    UART1_WriteString(dbg_buf);
+    UART1_WriteString("\" ");
+    UART1_WriteDecimal(cmd_len);
+    UART1_WriteString(" bytes\r\n");
 }
 
 /* ---- Persistencia de la lista de mercado en EEPROM (desde 0x100) ---- */

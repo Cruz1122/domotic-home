@@ -17,6 +17,7 @@ void     ADC_Init(void);
 void     ADC_Start(uint8_t channel);
 uint8_t  ADC_Poll(uint16_t *out_value);
 uint8_t  ADC_IsBusy(void);
+uint8_t  ADC_ReadSync(uint8_t channel, uint16_t *out_value);
 
 #ifdef __cplusplus
 }

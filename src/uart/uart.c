@@ -8,8 +8,8 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-#define TX_BUF_SIZE 256
-#define RX_BUF_SIZE 32
+#define TX_BUF_SIZE 512
+#define RX_BUF_SIZE 128
 
 /* UART0 (debug/eventos): buffers de transmisión y recepción. */
 static volatile uint8_t tx0_buffer[TX_BUF_SIZE];
@@ -105,7 +105,7 @@ void UART1_Init(uint32_t baud) {
     uint16_t ubrr = (uint16_t)(F_CPU / 16 / baud - 1);
     UBRR1H = (uint8_t)(ubrr >> 8);
     UBRR1L = (uint8_t)(ubrr);
-    UCSR1B = (1 << TXEN1) | (1 << RXEN1) | (1 << RXCIE1);
+    UCSR1B = (1 << TXEN1);
     UCSR1C = (1 << UCSZ11) | (1 << UCSZ10);
     tx1_head = 0; tx1_tail = 0;
     rx1_head = 0; rx1_tail = 0;
@@ -116,7 +116,6 @@ void UART1_WriteChar(char c) {
     if (next == tx1_tail) return;
     tx1_buffer[tx1_head] = (uint8_t)c;
     tx1_head = next;
-    UCSR1B |= (1 << UDRIE1);
 }
 
 void UART1_WriteString(const char *str) { while (*str) { UART1_WriteChar(*str++); } }
@@ -157,4 +156,54 @@ ISR(USART1_UDRE_vect) {
         UDR1 = tx1_buffer[tx1_tail];
         tx1_tail = (uint8_t)(tx1_tail + 1) % TX_BUF_SIZE;
     } else { UCSR1B &= ~(1 << UDRIE1); }
+}
+
+/* ============================================================
+ *  Bridge UART0 <-> UART1
+ *  Permite usar el USB del Mega (UART0) como terminal del canal
+ *  de comandos UART1 sin necesidad de un adaptador USB-TTL extra.
+ *  Sentido 1: lo tecleado en Serial Monitor se inyecta en RX de UART1
+ *             para que el parser de Remoto lo procese normalmente.
+ *  Sentido 2: las respuestas que Remoto encola en TX de UART1 se
+ *             copian a TX de UART0 para que aparezcan en Serial Monitor.
+ * ============================================================ */
+
+void UART1_InjectRxChar(char c) {
+    uint8_t next = (uint8_t)(rx1_head + 1) % RX_BUF_SIZE;
+    if (next != rx1_tail) {
+        rx1_buffer[rx1_head] = (uint8_t)c;
+        rx1_head = next;
+    }
+}
+
+uint8_t UART1_TxAvailable(void) {
+    uint8_t h = tx1_head;
+    uint8_t t = tx1_tail;
+    if (h >= t) return (uint8_t)(h - t);
+    return (uint8_t)((TX_BUF_SIZE - t) + h);
+}
+
+char UART1_ReadTxChar(void) {
+    if (tx1_head == tx1_tail) return '\0';
+    char c = (char)tx1_buffer[tx1_tail];
+    tx1_tail = (uint8_t)(tx1_tail + 1) % TX_BUF_SIZE;
+    return c;
+}
+
+void UART_Bridge_Task(void) {
+    /* Sentido 1: lo tecleado en Serial Monitor (UART0 RX) -> UART1 RX.
+       Solo se inyectan chars imprimibles y CR/LF. Sin eco local:
+       el IDE ya muestra lo que se teclea, y el eco dobla el trafico TX
+       compitiendo con los eventos del sistema. */
+    while (UART_Available()) {
+        char c = UART_ReadChar();
+        if (c == '\r' || c == '\n' || (c >= 0x20 && c < 0x7F)) {
+            UART1_InjectRxChar(c);
+        }
+    }
+    /* Sentido 2: respuestas encoladas por Remoto en UART1 TX -> UART0 TX.
+       Asi aparecen en el Monitor Serie del PC. */
+    while (UART1_TxAvailable()) {
+        UART_WriteChar(UART1_ReadTxChar());
+    }
 }
