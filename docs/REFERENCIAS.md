@@ -13,7 +13,7 @@ Fuentes:
 
 ## RFID-RC522 / MFRC522
 
-El MFRC522 es un lector/escritor integrado para comunicación sin contacto a 13.56 MHz. Soporta ISO/IEC 14443 A/MIFARE/NTAG y ofrece interfaces SPI, UART e I2C. Para este proyecto se usará SPI con driver propio.
+El MFRC522 es un lector/escritor integrado para comunicación sin contacto a 13.56 MHz. Soporta ISO/IEC 14443 A/MIFARE/NTAG y ofrece interfaces SPI, UART e I2C. Para este proyecto se usa SPI con la librería Arduino [MFRC522](https://github.com/miguelbalboa/rfid) (adaptador en `src/rfid_rc522/rfid_rc522_lib.cpp`).
 
 Fuentes:
 
@@ -22,4 +22,4 @@ Fuentes:
 
 ## Nota sobre librerías
 
-Las fuentes anteriores documentan capacidades de hardware. El proyecto no usará librerías externas para RFID, LCD, teclado, EEPROM, SPI, PWM, ADC ni servo. Cualquier abstracción debe ser implementada como driver propio dentro del repositorio.
+El RFID usa la librería externa **MFRC522** (instalar con `arduino-cli lib install "MFRC522"` o desde el Gestor de Librerías de Arduino IDE). El resto del firmware (LCD, teclado, EEPROM, SPI de bajo nivel, PWM, ADC, servo) sigue con drivers propios en el repositorio.

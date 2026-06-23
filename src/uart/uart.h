@@ -1,9 +1,9 @@
 /*
  * Módulo: UART
- * Dos canales serie con buffers circulares por interrupción:
- *   UART0 -> debug y eventos del sistema ([TAG] mensaje).
+ * Dos canales serie con buffers circulares:
+ *   UART0 -> debug y eventos del sistema ([TAG] mensaje), atendido por UART_Task.
  *   UART1 -> comandos remotos desde el Virtual Terminal (RADIO/HORNO/MERCADO).
- * Ningún envío bloquea: la ISR UDRE vacía el buffer de transmisión.
+ * Ningún envío bloquea: UART_Task drena el buffer de transmisión de UART0.
  */
 #ifndef UART_H
 #define UART_H

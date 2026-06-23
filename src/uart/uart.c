@@ -1,12 +1,11 @@
 /*
  * Módulo: UART — implementación
- * Buffers circulares de TX/RX por interrupción para UART0 y UART1 (8N1).
- * TX: se encola y la ISR UDRE transmite cuando el registro queda libre.
- * RX: la ISR RX guarda el byte; el resto del sistema lee sin bloquear.
+ * Buffers circulares de TX/RX para UART0 y UART1 (8N1).
+ * UART0 se atiende por sondeo en UART_Task (sin ISRs: compatible con core Arduino).
+ * UART1 usa colas en RAM; el bridge inyecta RX y drena TX hacia UART0.
  */
 #include "uart.h"
 #include <avr/io.h>
-#include <avr/interrupt.h>
 
 #define TX_BUF_SIZE 512
 #define RX_BUF_SIZE 128
@@ -31,13 +30,27 @@ void UART_Init(uint32_t baud) {
     uint16_t ubrr = (uint16_t)(F_CPU / 16 / baud - 1);
     UBRR0H = (uint8_t)(ubrr >> 8);
     UBRR0L = (uint8_t)(ubrr);
-    UCSR0B = (1 << TXEN0) | (1 << RXEN0) | (1 << RXCIE0);
+    UCSR0B = (1 << TXEN0) | (1 << RXEN0);
     UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
     tx0_head = 0; tx0_tail = 0;
     rx0_head = 0; rx0_tail = 0;
 }
 
-void UART_Task(void) {}
+/* Sondeo no bloqueante de UART0 (evita ISRs que chocan con HardwareSerial del core). */
+void UART_Task(void) {
+    while (UCSR0A & (1 << RXC0)) {
+        uint8_t data = UDR0;
+        uint8_t next = (uint8_t)(rx0_head + 1) % RX_BUF_SIZE;
+        if (next != rx0_tail) {
+            rx0_buffer[rx0_head] = data;
+            rx0_head = next;
+        }
+    }
+    while ((tx0_head != tx0_tail) && (UCSR0A & (1 << UDRE0))) {
+        UDR0 = tx0_buffer[tx0_tail];
+        tx0_tail = (uint8_t)(tx0_tail + 1) % TX_BUF_SIZE;
+    }
+}
 
 /* Encola un char para TX. Si el buffer está lleno, se descarta (no bloquea). */
 void UART_WriteChar(char c) {
@@ -45,7 +58,6 @@ void UART_WriteChar(char c) {
     if (next == tx0_tail) return;
     tx0_buffer[tx0_head] = (uint8_t)c;
     tx0_head = next;
-    UCSR0B |= (1 << UDRIE0);
 }
 
 void UART_WriteString(const char *str) {
@@ -80,21 +92,6 @@ char UART_ReadChar(void) {
     char c = (char)rx0_buffer[rx0_tail];
     rx0_tail = (uint8_t)(rx0_tail + 1) % RX_BUF_SIZE;
     return c;
-}
-
-/* ISR RX de UART0: guarda el byte recibido si hay espacio en el buffer. */
-ISR(USART0_RX_vect) {
-    uint8_t data = UDR0;
-    uint8_t next = (uint8_t)(rx0_head + 1) % RX_BUF_SIZE;
-    if (next != rx0_tail) { rx0_buffer[rx0_head] = data; rx0_head = next; }
-}
-
-/* ISR de registro de TX vacío: envía el siguiente byte encolado o apaga la IRQ. */
-ISR(USART0_UDRE_vect) {
-    if (tx0_head != tx0_tail) {
-        UDR0 = tx0_buffer[tx0_tail];
-        tx0_tail = (uint8_t)(tx0_tail + 1) % TX_BUF_SIZE;
-    } else { UCSR0B &= ~(1 << UDRIE0); }
 }
 
 /* ============================================================
@@ -143,30 +140,6 @@ char UART1_ReadChar(void) {
     rx1_tail = (uint8_t)(rx1_tail + 1) % RX_BUF_SIZE;
     return c;
 }
-
-/* ISR RX de UART1: recibe los comandos remotos que escribe el usuario. */
-ISR(USART1_RX_vect) {
-    uint8_t data = UDR1;
-    uint8_t next = (uint8_t)(rx1_head + 1) % RX_BUF_SIZE;
-    if (next != rx1_tail) { rx1_buffer[rx1_head] = data; rx1_head = next; }
-}
-
-ISR(USART1_UDRE_vect) {
-    if (tx1_head != tx1_tail) {
-        UDR1 = tx1_buffer[tx1_tail];
-        tx1_tail = (uint8_t)(tx1_tail + 1) % TX_BUF_SIZE;
-    } else { UCSR1B &= ~(1 << UDRIE1); }
-}
-
-/* ============================================================
- *  Bridge UART0 <-> UART1
- *  Permite usar el USB del Mega (UART0) como terminal del canal
- *  de comandos UART1 sin necesidad de un adaptador USB-TTL extra.
- *  Sentido 1: lo tecleado en Serial Monitor se inyecta en RX de UART1
- *             para que el parser de Remoto lo procese normalmente.
- *  Sentido 2: las respuestas que Remoto encola en TX de UART1 se
- *             copian a TX de UART0 para que aparezcan en Serial Monitor.
- * ============================================================ */
 
 void UART1_InjectRxChar(char c) {
     uint8_t next = (uint8_t)(rx1_head + 1) % RX_BUF_SIZE;

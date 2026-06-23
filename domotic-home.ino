@@ -6,7 +6,7 @@
  *
  *  Arquitectura: máquina de estados, sin delay() en lógica
  *  Plataforma  : ATmega2560 / Arduino Mega 2560
- *  Lenguaje    : C puro, sin librerías externas
+ *  Lenguaje    : C puro (RFID vía librería MFRC522)
  * ============================================================ */
 
 #include <Arduino.h>
@@ -54,6 +54,9 @@ void loop(void) {
      * Ninguna bloquea; todas usan now_ms como reloj (Timer_Millis). */
     uint32_t now_ms = Timer_Millis();
 
+    /* UART0 por sondeo: RX del Monitor Serie y drenado de TX encolado. */
+    UART_Task();
+
     /* Bridge UART0<->UART1: reenvía lo tecleado en el Monitor Serie (USB)
      * al parser de comandos y clona las respuestas al mismo canal. */
     UART_Bridge_Task();
@@ -64,4 +67,6 @@ void loop(void) {
     Confort_Task(now_ms);
     Remoto_Task(now_ms);
     UI_Task(now_ms);
+
+    UART_Task();
 }
