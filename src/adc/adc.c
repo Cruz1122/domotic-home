@@ -55,3 +55,22 @@ uint8_t ADC_Poll(uint16_t *out_value) {
 uint8_t ADC_IsBusy(void) {
     return (adc_busy != 0U) || ((ADCSRA & (1 << ADSC)) != 0U);
 }
+
+/* Lectura síncrona: espera a que el ADC esté libre, fuerza el canal y
+ * bloquea ~104 us hasta que la conversión termine.
+ * Útil para módulos que necesitan el valor sin competir con ADC_Start/Poll. */
+uint8_t ADC_ReadSync(uint8_t channel, uint16_t *out_value) {
+    if (!adc_channel_valid(channel)) return 0;
+    if (out_value == 0) return 0;
+
+    while (ADCSRA & (1 << ADSC)) { }
+
+    ADMUX = (ADMUX & 0xF0) | (channel & 0x0F);
+    ADCSRA |= (1 << ADSC);
+
+    while (ADCSRA & (1 << ADSC)) { }
+
+    *out_value = ADC;
+    adc_busy = 0;
+    return 1;
+}

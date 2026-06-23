@@ -240,6 +240,8 @@ static void Confort_ServiceAdc(uint32_t now_ms) {
             adc_request = ADC_REQ_NONE;
             Confort_ProcessAdcSample(channel, raw);
             light_tick = now_ms;
+        } else if (!ADC_IsBusy()) {
+            adc_request = ADC_REQ_NONE;
         }
         return;
     }

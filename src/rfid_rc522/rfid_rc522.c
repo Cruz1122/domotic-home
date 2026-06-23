@@ -395,38 +395,35 @@ static void rc522_init_hw(void) {
 
     GPIO_SetPinMode(PIN_RFID_RST, GPIO_OUT);
     GPIO_WritePin(PIN_RFID_RST, GPIO_LOW);
-    rc522_delay(5000);
+    rc522_delay(50000);
     GPIO_WritePin(PIN_RFID_RST, GPIO_HIGH);
-    rc522_delay(5000);
+    rc522_delay(50000);
 
     SPI_Init();
+    rc522_delay(10000);
     rc522_write_reg(RC522_REG_COMMAND, RC522_CMD_SOFTRESET);
     rc522_delay(50000);
-    rc522_write_reg(RC522_REG_TMODE, 0x8D);
-    rc522_write_reg(RC522_REG_TPRESCALER, 0x3E);
-    rc522_write_reg(RC522_REG_TRELOAD_H, 0x00);
-    rc522_write_reg(RC522_REG_TRELOAD_L, 0x0F);
+    rc522_write_reg(RC522_REG_TMODE, 0x80);
+    rc522_write_reg(RC522_REG_TPRESCALER, 0xA9);
+    rc522_write_reg(RC522_REG_TRELOAD_H, 0x03);
+    rc522_write_reg(RC522_REG_TRELOAD_L, 0x03);
     rc522_write_reg(RC522_REG_TX_ASK, 0x40);
-    rc522_write_reg(RC522_REG_RF_CFG, 0x7F);
+    rc522_write_reg(RC522_REG_RF_CFG, 0x70);
     rc522_write_reg(RC522_REG_STATUS2, 0x08);
     rc522_write_reg(RC522_REG_COLL, 0x80);
+    rc522_write_reg(RC522_REG_TX_CONTROL, 0x03);
 
     uint8_t version = 0;
     if (!rc522_read_reg(RC522_REG_VERSION, &version)) {
-        rf_enabled = 0;
-        UART_WriteEvent(SER_RFID, "RC522 VersionReg read failed (modo UART)");
-        return;
+        UART_WriteEvent(SER_RFID, "RC522 VersionReg read failed, SPI puede no funcionar");
+    } else {
+        UART_WriteString(SER_RFID "VersionReg=0x");
+        rf_print_hex8(version);
+        UART_Newline();
+        if (version == 0x00 || version == 0xFF) {
+            UART_WriteEvent(SER_RFID, "RC522 VersionReg=0x00/0xFF, SPI puede no funcionar");
+        }
     }
-    UART_WriteString(SER_RFID "VersionReg=0x");
-    rf_print_hex8(version);
-    UART_Newline();
-    if (version == 0x00 || version == 0xFF) {
-        rf_enabled = 0;
-        UART_WriteEvent(SER_RFID, "RC522 ausente, lectura por UART habilitada");
-        return;
-    }
-
-    rc522_write_reg(RC522_REG_TX_CONTROL, 0x03);
 }
 
 /* Devuelve 1 si resolvio un UID en este ciclo. */

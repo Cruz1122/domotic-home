@@ -37,7 +37,6 @@ static uint8_t  last_pir2 = 0;
 static uint16_t smoke_threshold = SMOKE_THRESHOLD_DEFAULT;
 static uint8_t  smoke_count = 0;
 static uint32_t adc_tick = 0;
-static uint8_t  adc_pending = 0;
 
 static security_state_t st;
 
@@ -71,7 +70,6 @@ void Seguridad_Init(void) {
     acc_state = ACC_INACTIVE;
     fire_st   = FIRE_INACTIVE;
     smoke_count = 0;
-    adc_pending = 0;
     adc_tick = Timer_GetMs() - ADC_READ_INTERVAL_MS;
     last_pir1  = GPIO_ReadPin(PIN_PIR_1);
     last_pir2  = GPIO_ReadPin(PIN_PIR_2);
@@ -113,7 +111,9 @@ void Seguridad_SetFireAlarm(uint8_t active) {
         if (fire_st == FIRE_INACTIVE) {
             fire_st = FIRE_ACTIVE;
             st.fire_enabled = 1;
+            st.fire_triggered = 0;
             smoke_count = 0;
+            update_alarm_outputs();
             adc_tick = Timer_GetMs() - ADC_READ_INTERVAL_MS;
             UART_WriteEvent(SER_FUEGO, "Alarma incendio activada");
         }
@@ -194,37 +194,17 @@ static void check_access_switch(void) {
     }
 }
 
-/* Lee el MQ-2 sin bloquear: arranca la conversión y la resuelve en ciclos.
- * Dispara la alarma de incendio tras SMOKE_DEBOUNCE_COUNT lecturas sobre el umbral. */
+/* Lee el MQ-2 con ADC_ReadSync cada ADC_READ_INTERVAL_MS.
+ * ADC_ReadSync fuerza el canal MQ-2 y bloquea ~104 us (evita el cross-talk
+ * con Confort que comparte el mismo ADC para el potenciómetro).
+ * Dispara la alarma de incendio tras SMOKE_DEBOUNCE_COUNT lecturas sobre umbral. */
 static void check_smoke(uint32_t now_ms) {
-    uint16_t adc_val = 0;
-    uint8_t  valid   = 0;
+    uint16_t adc_val;
 
-    (void)now_ms;
+    if (!Timer_Expired(adc_tick, ADC_READ_INTERVAL_MS)) return;
+    adc_tick = now_ms;
 
-    /* Resolver conversión pendiente */
-    if (adc_pending) {
-        if (ADC_Poll(&adc_val)) {
-            adc_pending = 0;
-            valid = 1;
-        } else if (!ADC_IsBusy()) {
-            adc_pending = 0;
-        }
-    }
-
-    /* Iniciar nueva conversion si el intervalo expiro */
-    if (!adc_pending && !valid && Timer_Expired(adc_tick, ADC_READ_INTERVAL_MS)) {
-        if (!ADC_IsBusy()) {
-            ADC_Start(ADC_MQ2);
-            adc_pending = 1;
-            if (ADC_Poll(&adc_val)) {
-                adc_pending = 0;
-                valid = 1;
-            }
-        }
-    }
-
-    if (!valid) return;
+    if (!ADC_ReadSync(ADC_MQ2, &adc_val)) return;
 
     if (adc_val > 1023U) adc_val = 1023U;
     st.smoke_adc = adc_val;

@@ -54,6 +54,10 @@ void loop(void) {
      * Ninguna bloquea; todas usan now_ms como reloj (Timer_Millis). */
     uint32_t now_ms = Timer_Millis();
 
+    /* Bridge UART0<->UART1: reenvía lo tecleado en el Monitor Serie (USB)
+     * al parser de comandos y clona las respuestas al mismo canal. */
+    UART_Bridge_Task();
+
     RFID_Task(now_ms);
     Seguridad_Task(now_ms);
     Accesos_Task(now_ms);

@@ -15,9 +15,13 @@ void SPI_Init(void) {
     GPIO_SetPinMode(PIN_SPI_MISO, GPIO_IN);
     GPIO_WritePin(PIN_SPI_SS, GPIO_HIGH);
 
-    /* SPE=habilita SPI, MSTR=maestro. Sin interrupciones. */
-    SPCR = (1 << SPE) | (1 << MSTR);
+    /* SPE=habilita SPI, MSTR=maestro, SPR0=1 -> fclk/16 (1 MHz)
+     * para compatibilidad con modulos RC522 chinos que no toleran 4 MHz. */
+    SPCR = (1 << SPE) | (1 << MSTR) | (1 << SPR0);
     SPSR = 0x00;
+    /* Limpia el flag SPIF que pudiera estar set de un reset anterior,
+     * leyendo SPSR y luego SPDR según requiere el datasheet. */
+    { uint8_t _dummy = SPSR; (void)_dummy; _dummy = SPDR; (void)_dummy; }
 }
 
 /* Transfiere 1 byte (full-duplex). Timeout en ticks para no colgarse si el RC522 no responde. */

@@ -35,6 +35,17 @@ void UART1_WriteEvent(const char *tag, const char *msg);
 uint8_t UART1_Available(void);
 char UART1_ReadChar(void);
 
+/* Helpers de buffer para el bridge UART0<->UART1.
+   Permiten simular bytes entrantes en UART1 sin pasar por la línea física
+   y leer los bytes que el Remoto encola para TX sin enviarlos al pin. */
+void UART1_InjectRxChar(char c);
+uint8_t UART1_TxAvailable(void);
+char UART1_ReadTxChar(void);
+
+/* Reenvía lo recibido por UART0 al buffer RX de UART1 y lo encolado
+   para TX en UART1 al buffer TX de UART0. Llamar antes de Remoto_Task. */
+void UART_Bridge_Task(void);
+
 #ifdef __cplusplus
 }
 #endif
