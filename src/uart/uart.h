@@ -43,6 +43,12 @@ void UART1_InjectRxChar(char c);
 uint8_t UART1_TxAvailable(void);
 char UART1_ReadTxChar(void);
 
+/* Filtro opcional de línea completa UART0.
+   Recibe la línea (sin \\r\\n) y su longitud; retorna 1 si la línea fue consumida
+   (p.ej. UID RFID válido), 0 si debe reenviarse al parser remoto. */
+typedef uint8_t (*uart_line_filter_t)(const char *line, uint8_t len);
+void UART_Bridge_SetLineFilter(uart_line_filter_t filter);
+
 /* Reenvía RX de UART0 al buffer RX de UART1 (comandos desde Monitor Serie).
  * Ignora líneas que empiezan por '[' (eco de eventos/respuestas). */
 void UART_Bridge_Task(void);

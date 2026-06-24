@@ -32,57 +32,42 @@ static void rf_commit_uid(const uint8_t *uid, uint8_t len) {
 
 /* ==================================================================
  *  FUENTE 1 — Inyección de UID por UART0 (simulación Proteus / pruebas)
- *  Formato aceptado: pares hex + Enter, p.ej.  "AABBCCDD\n"
+ *  Formato aceptado: solo dígitos 0-9 (pares), Enter finaliza.
+ *  Ej:  "12345678\n" -> UID de 4 bytes  [0x12,0x34,0x56,0x78]
+ *  Largos válidos: 8, 14 o 20 dígitos (4, 7 o 10 bytes ISO14443A)
  * ================================================================== */
 #if RFID_UART_INJECT
 
-static uint8_t sim_state;
-static uint8_t sim_uid[RFID_UID_MAX];
-static uint8_t sim_uid_count;
-static uint8_t sim_nibble;
+/* Filtro de línea completa para UART_Bridge_Task: recibe la línea (sin \\r\\n)
+   y retorna 1 si es un UID numérico válido (solo dígitos 0-9, pares, 4/7/10 bytes),
+   0 para que el bridge la reenvíe al parser de comandos. */
+static uint8_t rfid_line_filter(const char *line, uint8_t len) {
+    uint8_t uid[RFID_UID_MAX];
+    uint8_t uid_count = 0;
+    uint8_t nibble = 0;
+    uint8_t state = 0;
 
-/* Convierte un carácter hex a su valor 0-15, o 0xFF si no es hex. */
-static uint8_t sim_hex_val(char c) {
-    if (c >= '0' && c <= '9') return (uint8_t)(c - '0');
-    if (c >= 'A' && c <= 'F') return (uint8_t)(c - 'A' + 10);
-    if (c >= 'a' && c <= 'f') return (uint8_t)(c - 'a' + 10);
-    return 0xFF;
-}
-
-static void sim_reset(void) {
-    sim_state = 0;
-    sim_uid_count = 0;
-    sim_nibble = 0;
-}
-
-/* Lee caracteres de UART0 y arma el UID. Acepta 4, 7 o 10 bytes (ISO14443A). */
-static void rf_poll_uart_inject(void) {
-    while (UART_Available()) {
-        char c = UART_ReadChar();
-        uint8_t hv = sim_hex_val(c);
-
-        if (hv != 0xFF) {
-            if (sim_state == 0 || sim_state == 2) {
-                sim_nibble = hv;
-                sim_state = 1;
-            } else {
-                if (sim_uid_count < RFID_UID_MAX) {
-                    sim_uid[sim_uid_count++] = (uint8_t)((sim_nibble << 4) | hv);
-                }
-                sim_state = 2;
-            }
-        } else if (c == '\n' || c == '\r') {
-            /* Acepta 4, 7 o 10 bytes (longitudes ISO14443A validas) */
-            if (sim_uid_count == 4 || sim_uid_count == 7 || sim_uid_count == 10) {
-                rf_commit_uid(sim_uid, sim_uid_count);
-            }
-            sim_reset();
-            if (rf_uid_ready) return;   /* dejar el resto para el proximo ciclo */
+    for (uint8_t i = 0; i < len; i++) {
+        char c = line[i];
+        if (c < '0' || c > '9') return 0;
+        uint8_t d = (uint8_t)(c - '0');
+        if (state == 0) {
+            nibble = d;
+            state = 1;
         } else {
-            /* caracter no valido: descartar la captura en curso */
-            sim_reset();
+            if (uid_count < RFID_UID_MAX) {
+                uid[uid_count++] = (uint8_t)((nibble << 4) | d);
+            }
+            state = 0;
         }
     }
+
+    if (state != 0) return 0;
+    if (uid_count == 4 || uid_count == 7 || uid_count == 10) {
+        rf_commit_uid(uid, uid_count);
+        return 1;
+    }
+    return 0;
 }
 
 #endif /* RFID_UART_INJECT */
@@ -119,7 +104,7 @@ void RFID_Init(void) {
     rf_clear_uid();
 
 #if RFID_UART_INJECT
-    sim_reset();
+    UART_Bridge_SetLineFilter(rfid_line_filter);
 #endif
 #if RFID_USE_RC522
     rfid_lib_init();
@@ -133,10 +118,6 @@ void RFID_Task(uint32_t now_ms) {
     if (rf_poll_rc522(now_ms)) return;
 #else
     (void)now_ms;
-#endif
-
-#if RFID_UART_INJECT
-    rf_poll_uart_inject();
 #endif
 }
 

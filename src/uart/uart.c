@@ -22,8 +22,14 @@ static volatile uint8_t tx1_head, tx1_tail;
 static volatile uint8_t rx1_buffer[RX_BUF_SIZE];
 static volatile uint8_t rx1_head, rx1_tail;
 
-/* Bridge: descarta líneas que empiezan por '[' (eco de eventos/respuestas en UART0). */
-static uint8_t bridge_ignore_line;
+/* Filtro opcional de línea completa UART0 (RFID injection, etc.). */
+static uart_line_filter_t bridge_filter;
+
+void UART_Bridge_SetLineFilter(uart_line_filter_t filter) {
+    bridge_filter = filter;
+}
+
+#define BRIDGE_LINE_MAX 64
 
 /* ============================================================
  *  UART0 — debug y eventos del sistema
@@ -183,31 +189,43 @@ char UART1_ReadTxChar(void) {
 }
 
 void UART_Bridge_Task(void) {
-    /* UART0 RX (Monitor Serie / eco por loopback) -> UART1 RX del parser.
-     * Ignora líneas que empiezan por '[': son eventos o respuestas propias
-     * reinyectadas por cableado Proteus o TX acoplado a RX. */
+    /* Acumula chars de UART0 hasta newline, luego decide si es comando o eco.
+     * Líneas que empiezan por '[' son eventos del sistema reinyectados (Proteus loopback)
+     * y se descartan. El resto pasa por el bridge_filter opcional (p.ej. RFID injection)
+     * antes de reenviarse al parser remoto. */
+    static char line_buf[BRIDGE_LINE_MAX];
+    static uint8_t line_pos;
+
     while (UART_Available()) {
         char c = UART_ReadChar();
 
-        if (c == '\r' || c == '\n') {
-            if (bridge_ignore_line == 0U) {
-                UART1_InjectRxChar(c);
+        if (line_pos < BRIDGE_LINE_MAX - 1) {
+            line_buf[line_pos++] = c;
+        }
+
+        if (c == '\n' || c == '\r' || line_pos >= BRIDGE_LINE_MAX - 1) {
+            uint8_t content_len = line_pos;
+            if (content_len > 0 && (line_buf[content_len-1] == '\n' || line_buf[content_len-1] == '\r')) {
+                content_len--;
             }
-            bridge_ignore_line = 0U;
-            continue;
-        }
-
-        if (bridge_ignore_line != 0U) {
-            continue;
-        }
-
-        if (c == '[') {
-            bridge_ignore_line = 1U;
-            continue;
-        }
-
-        if (c == '\t' || c == '\b' || c == 0x7F || (c >= 0x20 && c < 0x7F)) {
-            UART1_InjectRxChar(c);
+            uint8_t consumed = 0;
+            /* Líneas que empiezan por '[' son eco de eventos del sistema (loopback Proteus). */
+            if (content_len > 0 && line_buf[0] == '[') {
+                consumed = 1;
+            }
+            if (!consumed && bridge_filter && content_len > 0) {
+                consumed = bridge_filter(line_buf, content_len);
+            }
+            if (!consumed) {
+                for (uint8_t i = 0; i < line_pos; i++) {
+                    char ch = line_buf[i];
+                    if (ch == '\r' || ch == '\n' || ch == '\t' || ch == '\b' || ch == 0x7F
+                        || (ch >= 0x20 && ch < 0x7F)) {
+                        UART1_InjectRxChar(ch);
+                    }
+                }
+            }
+            line_pos = 0;
         }
     }
 }
