@@ -31,6 +31,7 @@ void     Accesos_Task(uint32_t now_ms);
 void     Accesos_SetMode(access_mode_t mode);
 access_mode_t Accesos_GetMode(void);
 void     Accesos_SetPendingCredits(uint8_t credits);
+uint8_t  Accesos_GetRechargeStep(void);
 uint8_t  Accesos_GetResultMsg(char *buf, uint8_t max_len);
 
 #ifdef __cplusplus

@@ -108,6 +108,7 @@ static rfid_menu_state_t rfid_menu_state;
 static uint8_t  rfid_waiting;        /* esperando a que el usuario acerque la tarjeta */
 static uint8_t  rfid_showing_result; /* mostrando el resultado de la operación */
 static uint32_t rfid_result_tick;
+static uint8_t  rfid_recharge_step;  /* último paso de recarga visto (0=padre, 1=hijo) */
 
 /* ---- Estado de la captura de código de alarma ----
  * sec_code_target: 1=alarma de acceso, 2=alarma de incendio. */
@@ -205,7 +206,11 @@ static void ui_render(void) {
             if (rfid_waiting) {
                 switch (Accesos_GetMode()) {
                     case ACCESS_MODE_RECHARGE_CHILD:
-                        ui_set_lcd("Acerque PADRE", "* Cancelar");
+                        if (Accesos_GetRechargeStep() == 1) {
+                            ui_set_lcd("Acerque HIJO", "* Cancelar");
+                        } else {
+                            ui_set_lcd("Acerque PADRE", "* Cancelar");
+                        }
                         break;
                     case ACCESS_MODE_ENROLL_PARENT:
                         ui_set_lcd("Registrar PADRE", "Acerque tarjeta");
@@ -382,6 +387,7 @@ static void ui_handle_key(char key) {
                 rfid_menu_state = RFID_MENU;
                 rfid_waiting = 0;
                 rfid_showing_result = 0;
+                rfid_recharge_step = 0;
             } else if (key == 'C') {
                 previous_screen = screen;
                 screen = UI_ENV;
@@ -450,6 +456,7 @@ static void ui_handle_key(char key) {
                     Accesos_SetMode(ACCESS_MODE_NORMAL);
                     rfid_waiting = 0;
                     rfid_showing_result = 0;
+                    rfid_recharge_step = 0;
                     rfid_menu_state = RFID_MENU;
                 }
             } else {
@@ -655,6 +662,7 @@ static void ui_handle_key(char key) {
                     previous_screen = screen;
                     screen = UI_RFID;
                     rfid_waiting = 1;
+                    rfid_recharge_step = 0;
                 } else {
                     input_clear();
                     ui_set_lcd("Invalido", "Rango 1-250");
@@ -680,6 +688,7 @@ void UI_Init(void) {
     rfid_menu_state = RFID_MENU;
     rfid_waiting = 0;
     rfid_showing_result = 0;
+    rfid_recharge_step = 0;
     sec_code_target = 0;
     sec_code_error = 0;
     input_clear();
@@ -705,19 +714,26 @@ void UI_Task(uint32_t now_ms) {
         ui_render();
     }
 
-    /* Resultado de una operación RFID: lo muestra 2 s y luego vuelve al menú. */
+    /* Resultado RFID: errores temporales mantienen rfid_waiting; fin de operación vuelve al menú. */
     if (screen == UI_RFID && rfid_waiting && !rfid_showing_result) {
         char msg[17];
         if (Accesos_GetResultMsg(msg, sizeof(msg))) {
             ui_set_lcd(msg, "");
-            rfid_waiting = 0;
             rfid_showing_result = 1;
             rfid_result_tick = now_ms;
+            if (Accesos_GetMode() == ACCESS_MODE_NORMAL) {
+                rfid_waiting = 0;
+            }
+        } else if (Accesos_GetMode() == ACCESS_MODE_RECHARGE_CHILD) {
+            uint8_t step = Accesos_GetRechargeStep();
+            if (step != rfid_recharge_step) {
+                rfid_recharge_step = step;
+                ui_render();
+            }
         }
     }
     if (rfid_showing_result && Timer_Expired(rfid_result_tick, 2000)) {
         rfid_showing_result = 0;
-        rfid_waiting = 0;
         ui_render();
     }
 

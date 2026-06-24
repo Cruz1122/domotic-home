@@ -188,7 +188,6 @@ static void handle_recharge(const uint8_t *uid) {
         }
         recharge_step = 1;
         UART_WriteEvent(SER_RFID, "Padre autenticado. Acerque HIJO");
-        set_result("Acerque HIJO");
         return;
     }
 
@@ -333,6 +332,10 @@ access_mode_t Accesos_GetMode(void) {
 
 void Accesos_SetPendingCredits(uint8_t credits) {
     pending_credits = credits;
+}
+
+uint8_t Accesos_GetRechargeStep(void) {
+    return recharge_step;
 }
 
 uint8_t Accesos_GetResultMsg(char *buf, uint8_t max_len) {
