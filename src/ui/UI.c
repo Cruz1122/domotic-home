@@ -36,7 +36,7 @@ typedef enum {
     UI_SEC_CODE_INPUT,           /* pide código para activar/desactivar alarmas */
     UI_RFID,                     /* accesos RFID: puerta, garaje, juegos, enrolar, etc. */
     UI_ENV,                      /* ambiente: temperatura e iluminación */
-    UI_SERVICES,                 /* servicios: radio, horno, mercado */
+    UI_SERVICES,                 /* servicios: radio, mercado */
     UI_TEMP_INPUT,               /* captura de temperatura objetivo (10-40) */
     UI_SOUND,                    /* estado del sonido y volumen remoto */
     UI_RFID_RECHARGE_INPUT,      /* captura de cupos a recargar (1-250) */
@@ -128,6 +128,43 @@ static void sec_code_reject(void) {
 /* ---- Market state ---- */
 static uint8_t market_add_product;
 static uint8_t market_view_index;
+
+static uint8_t ui_is_prev_key(char key) {
+    return key == 'A' || key == '4';
+}
+
+static uint8_t ui_is_next_key(char key) {
+    return key == 'D' || key == '6';
+}
+
+static void market_add_product_prev(void) {
+    if (market_add_product <= 1U) {
+        market_add_product = MARKET_PRODUCT_COUNT;
+    } else {
+        market_add_product--;
+    }
+}
+
+static void market_add_product_next(void) {
+    if (market_add_product >= MARKET_PRODUCT_COUNT) {
+        market_add_product = 1U;
+    } else {
+        market_add_product++;
+    }
+}
+
+static void market_view_prev(void) {
+    if (market_view_index > 0U) {
+        market_view_index--;
+    }
+}
+
+static void market_view_next(void) {
+    uint8_t count = Remoto_MarketGetCount();
+    if (market_view_index + 1U < count) {
+        market_view_index++;
+    }
+}
 
 /* ---- Helpers del buffer del LCD ---- */
 
@@ -253,8 +290,8 @@ static void ui_render(void) {
             break;
         }
         case UI_SERVICES:
-            ui_set_lcd("1Radio 2Horno",
-                        "3Merc *Vol");
+            ui_set_lcd("1Radio 2Merc",
+                        "*Vol");
             break;
 
         case UI_TEMP_INPUT:
@@ -304,7 +341,7 @@ static void ui_render(void) {
             } else {
                 strcat(l1, "1-8");
             }
-            ui_set_lcd(l1, "1-8 *Vol");
+            ui_set_lcd(l1, "4/6 #OK *Vol");
             break;
         }
 
@@ -354,7 +391,7 @@ static void ui_render(void) {
                 l2[0] = '\0';
                 strcat(l2, "x");
                 u8_to_str(l2 + 1, item.quantity);
-                strcat(l2, " <A D> *V");
+                strcat(l2, " 4/6 *V");
                 ui_set_lcd(l1, l2);
             } else {
                 ui_set_lcd("Error", "*Volver");
@@ -558,9 +595,6 @@ static void ui_handle_key(char key) {
                 screen = UI_SOUND;
                 lcd_dirty = 1;
             } else if (key == '2') {
-                UART_WriteEvent(SER_HORNO, "Menu horno");
-                ui_set_lcd("Horno", "Pendiente");
-            } else if (key == '3') {
                 UART_WriteEvent(SER_MERCADO, "Menu mercado");
                 previous_screen = screen;
                 screen = UI_MARKET;
@@ -572,7 +606,7 @@ static void ui_handle_key(char key) {
                 previous_screen = screen;
                 screen = UI_SERVICES;
             } else if (key == '1') {
-                market_add_product = 0;
+                market_add_product = 1;
                 input_clear();
                 previous_screen = screen;
                 screen = UI_MARKET_ADD_PROD;
@@ -593,6 +627,22 @@ static void ui_handle_key(char key) {
                 input_clear();
                 previous_screen = screen;
                 screen = UI_MARKET;
+            } else if (ui_is_prev_key(key)) {
+                if (market_add_product == 0U) {
+                    market_add_product = 1U;
+                }
+                market_add_product_prev();
+            } else if (ui_is_next_key(key)) {
+                if (market_add_product == 0U) {
+                    market_add_product = 1U;
+                }
+                market_add_product_next();
+            } else if (key == '#') {
+                if (market_add_product > 0U) {
+                    previous_screen = screen;
+                    screen = UI_MARKET_ADD_QTY;
+                    input_clear();
+                }
             } else if (key >= '1' && key <= '8') {
                 market_add_product = (uint8_t)(key - '0');
                 previous_screen = screen;
@@ -634,14 +684,10 @@ static void ui_handle_key(char key) {
                 market_view_index = 0;
                 previous_screen = screen;
                 screen = UI_MARKET;
-            } else if (key == 'A') {
-                if (market_view_index > 0) {
-                    market_view_index--;
-                }
-            } else if (key == 'D') {
-                if (market_view_index + 1 < Remoto_MarketGetCount()) {
-                    market_view_index++;
-                }
+            } else if (ui_is_prev_key(key)) {
+                market_view_prev();
+            } else if (ui_is_next_key(key)) {
+                market_view_next();
             }
             break;
 

@@ -72,11 +72,35 @@ static void remote_err(const char *module, const char *msg) {
     remote_reply(REMOTE_ERR, module, msg);
 }
 
+static void remote_status_prefix(const char *module);
+
+static void remote_tx_char(char c) {
+    UART1_WriteChar(c);
+    UART_WriteChar(c);
+}
+
+static void remote_tx_string(const char *str) {
+    while (*str != '\0') {
+        remote_tx_char(*str++);
+    }
+}
+
+static void remote_tx_decimal(uint32_t num) {
+    UART1_WriteDecimal(num);
+    UART_WriteDecimal(num);
+}
+
+static void remote_tx_crlf(void) {
+    UART1_WriteChar('\r');
+    UART1_WriteChar('\n');
+    UART_Newline();
+}
+
 static void remote_status_prefix(const char *module) {
-    UART1_WriteString(REMOTE_STATUS);
-    UART1_WriteChar('[');
-    UART1_WriteString(module);
-    UART1_WriteString("] ");
+    remote_tx_string(REMOTE_STATUS);
+    remote_tx_char('[');
+    remote_tx_string(module);
+    remote_tx_string("] ");
 }
 
 static void remote_status(const char *module, const char *msg) {
@@ -90,15 +114,15 @@ static void debug_event(const char *module, const char *msg) {
 }
 
 static void remote_write_u16(uint16_t value) {
-    UART1_WriteDecimal(value);
+    remote_tx_decimal(value);
 }
 
 static void remote_ok_horno_on(uint16_t temp, uint16_t min) {
-    UART1_WriteString(REMOTE_OK "[" MOD_HORNO "] ON TEMP=");
+    remote_tx_string(REMOTE_OK "[" MOD_HORNO "] ON TEMP=");
     remote_write_u16(temp);
-    UART1_WriteString(" MIN=");
+    remote_tx_string(" MIN=");
     remote_write_u16(min);
-    UART1_WriteString("\r\n");
+    remote_tx_crlf();
 }
 
 /* ---- Helpers internos ---- */
@@ -237,9 +261,9 @@ static void handle_radio(char **tok, uint8_t n) {
         }
 
         Confort_SetVolumePercent((uint8_t)volume);
-        UART1_WriteString(REMOTE_OK "[" MOD_RADIO "] VOL=");
-        UART1_WriteDecimal(volume);
-        UART1_WriteString("\r\n");
+        remote_tx_string(REMOTE_OK "[" MOD_RADIO "] VOL=");
+        remote_tx_decimal(volume);
+        remote_tx_crlf();
         uart0_write_prefix(REMOTE_DBG, MOD_RADIO);
         UART_WriteString("VOL=");
         UART_WriteDecimal(volume);
@@ -334,7 +358,7 @@ static void handle_market(char **tok, uint8_t n) {
         return;
     }
 
-    if (streq(tok[1], "PRODUCTS")) {
+    if (streq(tok[1], "PRODUCTS") || streq(tok[1], "PRODUCTOS")) {
         if (n != 2) {
             remote_err(MOD_MERCADO, "Argumentos invalidos");
             return;
@@ -363,11 +387,11 @@ static void handle_market(char **tok, uint8_t n) {
 
         for (uint8_t i = 0; i < Remoto_MarketGetCount(); i++) {
             if (Remoto_MarketGetItem(i, &item) && item.product_id == (uint8_t)product_id) {
-                UART1_WriteString(REMOTE_OK "[" MOD_MERCADO "] ");
-                UART1_WriteString(Remoto_MarketGetProductName(item.product_id));
-                UART1_WriteString(" x");
-                UART1_WriteDecimal(item.quantity);
-                UART1_WriteString("\r\n");
+                remote_tx_string(REMOTE_OK "[" MOD_MERCADO "] ");
+                remote_tx_string(Remoto_MarketGetProductName(item.product_id));
+                remote_tx_string(" x");
+                remote_tx_decimal(item.quantity);
+                remote_tx_crlf();
                 return;
             }
         }
@@ -402,15 +426,13 @@ static void handle_market(char **tok, uint8_t n) {
 static void radio_status(void) {
     remote_status_prefix(MOD_RADIO);
     if (Confort_IsSoundEnabled()) {
-        UART1_WriteString("ON");
+        remote_tx_string("ON");
     } else {
-        UART1_WriteString("OFF");
+        remote_tx_string("OFF");
     }
-    UART1_WriteString(" VOL=");
-
-    UART1_WriteDecimal(Confort_GetVolumePercent());
-    UART1_WriteChar('\r');
-    UART1_WriteChar('\n');
+    remote_tx_string(" VOL=");
+    remote_tx_decimal(Confort_GetVolumePercent());
+    remote_tx_crlf();
 }
 
 /* Estado del horno por UART1: ON/OFF, temperatura objetivo y minutos restantes. */
@@ -420,25 +442,26 @@ static void oven_status(void) {
     remote_status_prefix(MOD_HORNO);
 
     if (oven_running) {
-        UART1_WriteString("ON");
+        remote_tx_string("ON");
     } else {
-        UART1_WriteString("OFF");
+        remote_tx_string("OFF");
     }
-    UART1_WriteString(" TEMP=");
+    remote_tx_string(" TEMP=");
 
     t = oven_target_temp;
-    if (t >= 100) { UART1_WriteChar((char)('0' + t / 100)); t = (uint16_t)(t % 100); }
-    if (oven_target_temp >= 10) { UART1_WriteChar((char)('0' + t / 10)); t = (uint16_t)(t % 10); }
-    UART1_WriteChar((char)('0' + t));
+    if (t >= 100) { remote_tx_char((char)('0' + t / 100)); t = (uint16_t)(t % 100); }
+    if (oven_target_temp >= 10) { remote_tx_char((char)('0' + t / 10)); t = (uint16_t)(t % 10); }
+    remote_tx_char((char)('0' + t));
 
-    UART1_WriteString(" RESTANTE=");
+    remote_tx_string(" RESTANTE=");
 
     m = oven_remaining_min;
-    if (m >= 100) { UART1_WriteChar((char)('0' + m / 100)); m = (uint16_t)(m % 100); }
-    if (oven_remaining_min >= 10) { UART1_WriteChar((char)('0' + m / 10)); m = (uint16_t)(m % 10); }
-    UART1_WriteChar((char)('0' + m));
+    if (m >= 100) { remote_tx_char((char)('0' + m / 100)); m = (uint16_t)(m % 100); }
+    if (oven_remaining_min >= 10) { remote_tx_char((char)('0' + m / 10)); m = (uint16_t)(m % 10); }
+    remote_tx_char((char)('0' + m));
 
-    UART1_WriteString("min\r\n");
+    remote_tx_string("min");
+    remote_tx_crlf();
 }
 
 /* ---- Market list ---- */
@@ -451,8 +474,9 @@ static void market_list(void) {
     uint8_t count = Remoto_MarketGetCount();
 
     remote_status_prefix(MOD_MERCADO);
-    UART1_WriteDecimal(count);
-    UART1_WriteString(" items\r\n");
+    remote_tx_decimal(count);
+    remote_tx_string(" items");
+    remote_tx_crlf();
 
     if (count == 0) {
         remote_status(MOD_MERCADO, "Lista vacia");
@@ -467,13 +491,12 @@ static void market_list(void) {
         if (name == 0) name = "?";
 
         remote_status_prefix(MOD_MERCADO);
-        UART1_WriteDecimal((uint32_t)(i + 1));
-        UART1_WriteString(") ");
-        UART1_WriteString(name);
-        UART1_WriteString(" x");
-        UART1_WriteDecimal(item.quantity);
-        UART1_WriteChar('\r');
-        UART1_WriteChar('\n');
+        remote_tx_decimal((uint32_t)(i + 1));
+        remote_tx_string(") ");
+        remote_tx_string(name);
+        remote_tx_string(" x");
+        remote_tx_decimal(item.quantity);
+        remote_tx_crlf();
     }
 }
 
@@ -486,10 +509,10 @@ static void market_products(void) {
             name = "?";
         }
         remote_status_prefix(MOD_MERCADO);
-        UART1_WriteDecimal(id);
-        UART1_WriteChar(' ');
-        UART1_WriteString(name);
-        UART1_WriteString("\r\n");
+        remote_tx_decimal(id);
+        remote_tx_char(' ');
+        remote_tx_string(name);
+        remote_tx_crlf();
     }
 }
 
