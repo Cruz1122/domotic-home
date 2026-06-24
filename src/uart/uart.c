@@ -188,7 +188,8 @@ void UART_Bridge_Task(void) {
        compitiendo con los eventos del sistema. */
     while (UART_Available()) {
         char c = UART_ReadChar();
-        if (c == '\r' || c == '\n' || (c >= 0x20 && c < 0x7F)) {
+        if (c == '\r' || c == '\n' || c == '\t' || c == '\b' || c == 0x7F
+            || (c >= 0x20 && c < 0x7F)) {
             UART1_InjectRxChar(c);
         }
     }

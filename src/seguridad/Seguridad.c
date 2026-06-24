@@ -201,6 +201,11 @@ static void check_smoke(uint32_t now_ms) {
     uint16_t adc_val;
 
     if (!Timer_Expired(adc_tick, ADC_READ_INTERVAL_MS)) return;
+
+    if (ADC_IsBusy() != 0U) {
+        return;
+    }
+
     adc_tick = now_ms;
 
     if (!ADC_ReadSync(ADC_MQ2, &adc_val)) return;

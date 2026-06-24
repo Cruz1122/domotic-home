@@ -556,6 +556,22 @@ static void oven_stop(void) {
 
 /* ---- Parser de comandos ---- */
 
+static uint8_t trim_line(char *line, uint8_t len) {
+    uint8_t start = 0;
+
+    while (start < len && (line[start] == ' ' || line[start] == '\t')) {
+        start++;
+    }
+    while (len > start && (line[len - 1U] == ' ' || line[len - 1U] == '\t')) {
+        len--;
+    }
+    if (start > 0U && len > start) {
+        memmove(line, line + start, (size_t)(len - start));
+    }
+    line[len - start] = '\0';
+    return (uint8_t)(len - start);
+}
+
 /* Divide la línea en tokens (en mayúsculas) y despacha al módulo correspondiente. */
 static void process_command(void) {
     char *tokens[REMOTE_MAX_TOKENS];
@@ -563,6 +579,11 @@ static void process_command(void) {
     char dbg_buf[REMOTE_LINE_MAX];
 
     cmd_buf[cmd_len] = '\0';
+    cmd_len = trim_line(cmd_buf, cmd_len);
+    if (cmd_len == 0U) {
+        return;
+    }
+
     /* Copia para diagnostico antes de que split_tokens modifique cmd_buf. */
     for (count = 0; count < cmd_len && count < (uint8_t)(REMOTE_LINE_MAX - 1); count++) {
         dbg_buf[count] = cmd_buf[count];
@@ -663,8 +684,12 @@ void Remoto_Task(uint32_t now_ms) {
                 process_command();
                 cmd_len = 0;
             }
-        } else {
-            if (cmd_len < sizeof(cmd_buf) - 1) {
+        } else if (c == '\b' || c == 0x7F) {
+            if (cmd_len > 0U) {
+                cmd_len--;
+            }
+        } else if (c == '\t' || (c >= 0x20 && c < 0x7F)) {
+            if (cmd_len < sizeof(cmd_buf) - 1U) {
                 cmd_buf[cmd_len++] = c;
             } else {
                 cmd_overflow = 1;

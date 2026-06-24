@@ -13,7 +13,9 @@
 #include "../timer/timer.h"
 #include "../uart/uart.h"
 
-#define LIGHT_INTERVAL_MS   200
+#define LIGHT_INTERVAL_MS        200
+#define LIGHT_UART_STABLE_COUNT  2U
+#define LIGHT_UART_HISTORY_LEN   2U
 #define TEMP_INTERVAL_MS   300
 #define TEMP_DEFAULT         22
 #define TEMP_AMBIENT         20
@@ -27,6 +29,11 @@ typedef enum {
 static uint8_t  light_percent = 0;
 static uint32_t light_tick = 0;
 static uint8_t  light_reported_percent = 0;
+static uint8_t  light_candidate_pct = 0xFFU;
+static uint8_t  light_stable_count = 0;
+static uint8_t  light_uart_history[LIGHT_UART_HISTORY_LEN];
+static uint8_t  light_uart_history_count = 0;
+static uint8_t  light_uart_history_idx = 0;
 
 static uint8_t  volume_percent = 0;
 static uint8_t  sound_enabled = 0;
@@ -118,6 +125,58 @@ static void Confort_LogTemp(const char *label, uint16_t value) {
 /* Aplica el PWM de iluminación según el porcentaje del potenciómetro. */
 static void Confort_ApplyLightPwm(void) {
     PWM_SetDuty(PIN_LIGHT_PWM, Confort_PctToDuty(light_percent));
+}
+
+static uint8_t Confort_LightInReportHistory(uint8_t pct) {
+    for (uint8_t i = 0U; i < light_uart_history_count; i++) {
+        if (light_uart_history[i] == pct) {
+            return 1U;
+        }
+    }
+    return 0U;
+}
+
+static void Confort_LightPushReportHistory(uint8_t pct) {
+    light_uart_history[light_uart_history_idx] = pct;
+    light_uart_history_idx = (uint8_t)((light_uart_history_idx + 1U) % LIGHT_UART_HISTORY_LEN);
+    if (light_uart_history_count < LIGHT_UART_HISTORY_LEN) {
+        light_uart_history_count++;
+    }
+}
+
+static uint8_t Confort_LightStable(uint8_t pct) {
+    if (pct == light_candidate_pct) {
+        if (light_stable_count < 255U) {
+            light_stable_count++;
+        }
+    } else {
+        light_candidate_pct = pct;
+        light_stable_count = 1U;
+    }
+    return (uint8_t)(light_stable_count >= LIGHT_UART_STABLE_COUNT);
+}
+
+static uint8_t Confort_ShouldReportLight(uint8_t pct) {
+    if (Confort_LightStable(pct) == 0U) {
+        return 0U;
+    }
+    if (pct == light_reported_percent) {
+        return 0U;
+    }
+    if (Confort_LightInReportHistory(pct) != 0U) {
+        return 0U;
+    }
+    return 1U;
+}
+
+static void Confort_ReportLightIfNeeded(uint8_t pct) {
+    if (Confort_ShouldReportLight(pct) == 0U) {
+        return;
+    }
+
+    light_reported_percent = pct;
+    Confort_LightPushReportHistory(pct);
+    Confort_LogPercent(SER_SISTEMA, "Luz", pct);
 }
 
 /* Enciende calefactor o ventilador (LEDs), nunca ambos a la vez.
@@ -213,10 +272,7 @@ static void Confort_ProcessAdcSample(uint8_t channel, uint16_t raw) {
     if (channel == ADC_LIGHT_POT) {
         light_percent = pct;
         Confort_ApplyLightPwm();
-        if (light_reported_percent != light_percent) {
-            light_reported_percent = light_percent;
-            Confort_LogPercent(SER_SISTEMA, "Luz", light_percent);
-        }
+        Confort_ReportLightIfNeeded(light_percent);
         return;
     }
 
@@ -234,7 +290,7 @@ static void Confort_ServiceAdc(uint32_t now_ms) {
             Confort_ProcessAdcSample(channel, raw);
             light_tick = now_ms;
         } else if (!ADC_IsBusy()) {
-            adc_request = ADC_REQ_NONE;
+            ADC_Start(ADC_LIGHT_POT);
         }
         return;
     }

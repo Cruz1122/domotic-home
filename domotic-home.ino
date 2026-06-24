@@ -66,6 +66,11 @@ void loop(void) {
     Seguridad_Task(now_ms);
     Accesos_Task(now_ms);
     Confort_Task(now_ms);
+
+    /* Vacía RX antes del parser para no perder bytes del bridge. */
+    UART_Task();
+    UART1_Task();
+
     Remoto_Task(now_ms);
     UI_Task(now_ms);
 
