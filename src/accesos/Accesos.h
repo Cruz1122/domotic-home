@@ -1,7 +1,7 @@
 /*
  * Módulo: Accesos
  * Gestiona RFID: validación de usuarios, enrolamiento, borrado, recarga de cupos,
- * puerta principal (LED D43), garaje (servo D9 + LED D8, 10 s abierto) y
+ * puerta principal (LED D43), garaje (servo D9 + LED D8, 3 s abierto) y
  * sala de juegos (cupos en EEPROM).
  * No bloquea esperando tarjeta: consume el UID que deja el driver RFID.
  */
