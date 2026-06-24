@@ -54,6 +54,14 @@ static void remote_reply(const char *prefix, const char *module, const char *msg
     UART1_WriteString(msg);
     UART1_WriteChar('\r');
     UART1_WriteChar('\n');
+
+    /* Copia en UART0 para Monitor Serie; el bridge ignora líneas con '['. */
+    UART_WriteString(prefix);
+    UART_WriteChar('[');
+    UART_WriteString(module);
+    UART_WriteString("] ");
+    UART_WriteString(msg);
+    UART_Newline();
 }
 
 static void remote_ok(const char *module, const char *msg) {
@@ -616,14 +624,15 @@ static void process_command(void) {
         return;
     }
 
-    /* Error + diagnostico: muestra los primeros hasta REMOTE_LINE_MAX caracteres
-       tal cual llegaron (sin mayusculas ni separacion). */
+    /* Error: respuesta breve por UART1; detalle solo en UART0 de debug. */
     remote_err(MOD_SISTEMA, "Comando desconocido.");
-    UART1_WriteString(SER_SISTEMA "Recibido: \"");
-    UART1_WriteString(dbg_buf);
-    UART1_WriteString("\" ");
-    UART1_WriteDecimal(cmd_len);
-    UART1_WriteString(" bytes\r\n");
+    uart0_write_prefix(REMOTE_DBG, MOD_SISTEMA);
+    UART_WriteString("Recibido: \"");
+    UART_WriteString(dbg_buf);
+    UART_WriteString("\" ");
+    UART_WriteDecimal(cmd_len);
+    UART_WriteString(" bytes");
+    UART_Newline();
 }
 
 /* ---- Persistencia de la lista de mercado en EEPROM (desde 0x100) ---- */
@@ -680,8 +689,12 @@ void Remoto_Task(uint32_t now_ms) {
                 cmd_len = 0;
                 cmd_overflow = 0;
                 remote_err(MOD_SISTEMA, "Linea demasiado larga");
-            } else if (cmd_len > 0) {
-                process_command();
+            } else if (cmd_len > 0U) {
+                cmd_buf[cmd_len] = '\0';
+                cmd_len = trim_line(cmd_buf, cmd_len);
+                if (cmd_len > 0U && cmd_buf[0] != '[') {
+                    process_command();
+                }
                 cmd_len = 0;
             }
         } else if (c == '\b' || c == 0x7F) {

@@ -22,6 +22,9 @@ static volatile uint8_t tx1_head, tx1_tail;
 static volatile uint8_t rx1_buffer[RX_BUF_SIZE];
 static volatile uint8_t rx1_head, rx1_tail;
 
+/* Bridge: descarta líneas que empiezan por '[' (eco de eventos/respuestas en UART0). */
+static uint8_t bridge_ignore_line;
+
 /* ============================================================
  *  UART0 — debug y eventos del sistema
  * ============================================================ */
@@ -108,7 +111,7 @@ void UART1_Init(uint32_t baud) {
     rx1_head = 0; rx1_tail = 0;
 }
 
-/* Sondeo no bloqueante de UART1: RX del Virtual Terminal y TX hacia pin 18 + copia a UART0. */
+/* Sondeo no bloqueante de UART1: RX del Virtual Terminal y TX hacia pin 18. */
 void UART1_Task(void) {
     while (UCSR1A & (1 << RXC1)) {
         uint8_t data = UDR1;
@@ -119,9 +122,7 @@ void UART1_Task(void) {
         }
     }
     while ((tx1_head != tx1_tail) && (UCSR1A & (1 << UDRE1))) {
-        char c = (char)tx1_buffer[tx1_tail];
-        UDR1 = (uint8_t)c;
-        UART_WriteChar(c);
+        UDR1 = tx1_buffer[tx1_tail];
         tx1_tail = (uint8_t)(tx1_tail + 1) % TX_BUF_SIZE;
     }
 }
@@ -182,16 +183,31 @@ char UART1_ReadTxChar(void) {
 }
 
 void UART_Bridge_Task(void) {
-    /* Sentido 1: lo tecleado en Serial Monitor (UART0 RX) -> UART1 RX.
-       Solo se inyectan chars imprimibles y CR/LF. Sin eco local:
-       el IDE ya muestra lo que se teclea, y el eco dobla el trafico TX
-       compitiendo con los eventos del sistema. */
+    /* UART0 RX (Monitor Serie / eco por loopback) -> UART1 RX del parser.
+     * Ignora líneas que empiezan por '[': son eventos o respuestas propias
+     * reinyectadas por cableado Proteus o TX acoplado a RX. */
     while (UART_Available()) {
         char c = UART_ReadChar();
-        if (c == '\r' || c == '\n' || c == '\t' || c == '\b' || c == 0x7F
-            || (c >= 0x20 && c < 0x7F)) {
+
+        if (c == '\r' || c == '\n') {
+            if (bridge_ignore_line == 0U) {
+                UART1_InjectRxChar(c);
+            }
+            bridge_ignore_line = 0U;
+            continue;
+        }
+
+        if (bridge_ignore_line != 0U) {
+            continue;
+        }
+
+        if (c == '[') {
+            bridge_ignore_line = 1U;
+            continue;
+        }
+
+        if (c == '\t' || c == '\b' || c == 0x7F || (c >= 0x20 && c < 0x7F)) {
             UART1_InjectRxChar(c);
         }
     }
-    /* Sentido 2 (TX): UART1_Task drena el buffer TX hacia el pin fisico y UART0. */
 }
