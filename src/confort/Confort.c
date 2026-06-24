@@ -78,6 +78,7 @@ static char *Confort_AppendU16(char *dst, uint16_t value) {
 }
 
 static uint8_t Confort_PctToDuty(uint8_t pct) {
+    /* Curva gamma ~2.2: los cambios visibles no se concentran solo en 0-20%. */
     if (pct > 100U) {
         pct = 100U;
     }
@@ -304,7 +305,7 @@ void Confort_SetSoundEnabled(uint8_t enabled) {
     }
 }
 
-/* Volumen remoto (0-100) recibido por UART1. Aplica PWM proporcional al sonido. */
+/* Volumen remoto (0-100) recibido por UART1. Solo estado lógico: LCD y eventos UART. */
 void Confort_SetVolumePercent(uint8_t pct) {
     if (pct > 100U) pct = 100U;
     if (volume_percent != pct) {

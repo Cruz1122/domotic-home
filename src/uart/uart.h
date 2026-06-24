@@ -1,9 +1,9 @@
 /*
  * Módulo: UART
- * Dos canales serie con buffers circulares:
- *   UART0 -> debug y eventos del sistema ([TAG] mensaje), atendido por UART_Task.
- *   UART1 -> comandos remotos desde el Virtual Terminal (RADIO/HORNO/MERCADO).
- * Ningún envío bloquea: UART_Task drena el buffer de transmisión de UART0.
+ * Dos canales serie con buffers circulares (sondeo, sin ISRs propias):
+ *   UART0 -> debug, eventos del sistema y entrada del Monitor Serie (bridge RX).
+ *   UART1 -> comandos remotos (Virtual Terminal) y respuestas [OK]/[ERR]/[STATUS].
+ * UART1_Task replica las respuestas remotas en UART0.
  */
 #ifndef UART_H
 #define UART_H
@@ -43,8 +43,8 @@ void UART1_InjectRxChar(char c);
 uint8_t UART1_TxAvailable(void);
 char UART1_ReadTxChar(void);
 
-/* Reenvía lo recibido por UART0 al buffer RX de UART1 y lo encolado
-   para TX en UART1 al buffer TX de UART0. Llamar antes de Remoto_Task. */
+/* Reenvía RX de UART0 al buffer RX de UART1 (comandos desde Monitor Serie).
+ * Llamar después de UART_Task y antes de Remoto_Task. TX UART1->UART0 lo hace UART1_Task. */
 void UART_Bridge_Task(void);
 
 #ifdef __cplusplus

@@ -1,7 +1,7 @@
 /*
  * Módulo: Remoto
- * Atiende comandos por UART1 (Virtual Terminal): RADIO (sonido), HORNO y MERCADO.
- * El horno lleva cuenta regresiva no bloqueante (1 min lógico = 5 s reales en demo).
+ * Atiende comandos remotos por UART1 (Virtual Terminal) o UART0 (bridge del Monitor Serie).
+ * RADIO (sonido lógico), HORNO y MERCADO. Horno: 1 min lógico = 5 s reales en demo.
  * La lista de mercado se persiste en EEPROM y también se gestiona desde la UI.
  */
 #ifndef REMOTO_H

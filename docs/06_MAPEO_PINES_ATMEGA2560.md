@@ -110,12 +110,25 @@ Este documento contiene la consolidación del mapeo de pines para el microcontro
 
 ## 5. Uso en domotic-home
 
-| Subsistema | Pines Arduino | Puerto MCU |
-| :--- | :--- | :--- |
-| LCD RS/E/D4-D7 | D22-D23, D26-D29 | PA0-PA1, PA4-PA7 |
-| Teclado filas R1-R4 | D34-D37 | PC3-PC0 |
-| Teclado columnas C1-C4 | A8-A11 | PK0-PK3 (PCINT16-19) |
-| RFID SPI | D50-D53 | PB3-PB0 |
+| Subsistema | Pines Arduino | Puerto MCU | Nota |
+| :--- | :--- | :--- | :--- |
+| LCD RS/E/D4-D7 | D22-D23, D26-D29 | PA0-PA1, PA4-PA7 | Paralelo 4 bits |
+| Teclado filas R1-R4 | D34-D37 | PC3-PC0 | Salidas escaneadas |
+| Teclado columnas C1-C4 | A8-A11 (D62-D65) | PK0-PK3 | PCINT16-19 |
+| RFID SPI SS/RST | D53, D49 | PB0, PL0 | SPI hardware D50-D53 |
+| PIR 1 / PIR 2 | D38, D39 | PD7, PG2 | Entrada digital |
+| MQ-2 / Pot luz | A0, A1 | PF0, PF1 | ADC |
+| LED iluminación | D7 | PH4 | PWM Timer4 OC4B |
+| LED garaje abierto | D8 | PH5 | Digital |
+| Servo garaje | D9 | PH6 | Timer1 software PWM |
+| Buzzer alarma acceso | D10 | PB4 | Digital |
+| LED alarma incendio | D11 | PB5 | Digital |
+| Calefactor / Ventilador / Horno | D40-D42 | PG1, PG0, PL7 | LEDs simulados |
+| LED puerta principal | D43 | PL6 | Digital |
+| Test incendio / intrusión | D44, D45 | PL5, PL4 | Entrada, pull-up |
+| LED alarma acceso | D46 | PL3 | Digital |
+| UART0 debug | D0, D1 | PE0, PE1 | Monitor Serie USB |
+| UART1 remoto | D18, D19 | PD3, PD2 | Virtual Terminal |
 
 ---
 *Documento generado automáticamente con la consolidación completa de las tres secciones esquemáticas.*

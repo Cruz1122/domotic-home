@@ -4,12 +4,12 @@
 
 Este documento resume todos los comandos remotos disponibles por `UART1 / Serial1`, su sintaxis, ejemplos y respuesta esperada.
 
-Se usa durante la demo para operar el sistema desde un `Virtual Terminal` limpio, separado del canal de debug.
+Se usa durante la demo para operar el sistema desde un `Virtual Terminal` limpio, separado del canal de debug. También funciona desde el Monitor Serie de Arduino IDE gracias al bridge UART0→UART1.
 
 ## Roles de puertos
 
-- `UART0 / Serial`: debug interno, boot, trazas y eventos del sistema.
-- `UART1 / Serial1`: control remoto del usuario.
+- `UART0 / Serial`: debug interno, boot, trazas y eventos del sistema. También acepta comandos remotos vía bridge (ver abajo).
+- `UART1 / Serial1`: control remoto del usuario (Virtual Terminal en Proteus).
 
 `UART2 / Serial2` y `UART3 / Serial3` quedan libres, sin uso funcional en la aplicación.
 
@@ -83,7 +83,7 @@ Respuesta esperada:
 
 ### RADIO ON
 
-Enciende la salida de sonido. Si ya existe un volumen remoto almacenado, el PWM se restaura con ese porcentaje.
+Enciende la salida de sonido (estado lógico). Si ya existe un volumen remoto almacenado, el LCD lo muestra al consultar.
 
 Sintaxis:
 
@@ -99,7 +99,7 @@ Respuesta esperada:
 
 ### RADIO OFF
 
-Apaga la salida de sonido. El PWM queda en `0` aunque el último volumen remoto almacenado sea distinto de cero.
+Apaga la salida de sonido (estado lógico). El último volumen remoto almacenado se conserva para consultas.
 
 Sintaxis:
 
@@ -137,7 +137,7 @@ o
 
 ### RADIO VOL
 
-Actualiza el setpoint remoto de volumen. El rango válido es `0` a `100`.
+Actualiza el setpoint remoto de volumen. El rango válido es `0` a `100`. Se refleja en LCD y eventos `[SONIDO]` por UART0; no hay salida PWM física de volumen.
 
 Sintaxis:
 
@@ -443,12 +443,15 @@ MERCADO LIST
 
 ## Qué debe verse en UART0
 
-`UART0` no debe mostrar respuestas limpias de usuario. Debe mostrar solo:
+`UART0` muestra:
 
 - boot
-- trazas internas
+- trazas internas (`[SISTEMA]`, `[RFID]`, etc.)
 - eventos del sistema
-- logs de debug de acciones remotas
+- logs de debug de acciones remotos (`[DBG][RADIO]`, etc.)
+- respuestas de comandos remotos (replicadas desde UART1)
+
+Los comandos remotos también pueden enviarse por UART0: el bridge los reenvía al parser. En Proteus con Virtual Terminal en UART1, las respuestas limpias aparecen en ambos canales.
 
 ## Archivo relacionado
 

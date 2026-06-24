@@ -1,8 +1,8 @@
 /*
  * Módulo: Remoto — implementación
- * Parser de líneas por UART1 que despacha a RADIO/HORNO/MERCADO.
- * Las respuestas al usuario van por UART1 con prefijo [OK]/[ERR]/[STATUS].
- * Los eventos de debug internos van por UART0 (no se mezclan con las respuestas).
+ * Parser de líneas por UART1 (o UART0 vía bridge) que despacha a RADIO/HORNO/MERCADO.
+ * Las respuestas al usuario van por UART1 con prefijo [OK]/[ERR]/[STATUS] y se replican en UART0.
+ * Los eventos de debug internos van por UART0 con prefijo [DBG].
  */
 #include "Remoto.h"
 #include "../uart/uart.h"
@@ -93,7 +93,7 @@ static void remote_ok_horno_on(uint16_t temp, uint16_t min) {
     UART1_WriteString("\r\n");
 }
 
-/* ---- Internal helpers ---- */
+/* ---- Helpers internos ---- */
 
 static char ascii_upper(char c) {
     if (c >= 'a' && c <= 'z') {
@@ -169,11 +169,11 @@ static void handle_help(void) {
     remote_status(MOD_SISTEMA, "MERCADO PRODUCTS|ADD <id> <qty>|LIST|CLEAR|STATUS");
 }
 
-/* Comandos RADIO (sonido) por UART1:
- *   RADIO ON     -> enciende el sonido.
- *   RADIO OFF    -> apaga el sonido (PWM a 0).
+/* Comandos RADIO (sonido lógico) por UART1:
+ *   RADIO ON     -> enciende el sonido (estado en LCD/UART).
+ *   RADIO OFF    -> apaga el sonido (conserva el último volumen almacenado).
  *   RADIO STATUS -> reporta estado y volumen remoto actual.
- *   RADIO VOL n  -> ajusta el volumen remoto (0-100) y el PWM proporcional.
+ *   RADIO VOL n  -> ajusta el setpoint remoto (0-100) en LCD/UART.
  */
 static void handle_radio(char **tok, uint8_t n) {
     if (n < 2) {

@@ -84,20 +84,20 @@
 #define PIN_FAN_LED               PIN_FAN
 #define PIN_OVEN_LED              PIN_OVEN
 
-/* --- PWM --- */
-#define PIN_PWM_LIGHT              7
-#define PIN_GARAGE_SERVO_LED       8
-#define PIN_PWM_SERVO_GARAGE       9
-#define PIN_PWM_BUZZER_ALARM      10
+/* --- PWM y actuadores temporizados --- */
+#define PIN_PWM_LIGHT              7   /* Dimmer iluminación (Timer4 OC4B) */
+#define PIN_GARAGE_SERVO_LED       8   /* LED: garaje abierto (Accesos/Servo) */
+#define PIN_PWM_SERVO_GARAGE       9   /* Servo garaje (Timer1, servo_pwm) */
+#define PIN_PWM_BUZZER_ALARM      10   /* Buzzer alarma de acceso */
 
 #define PIN_LIGHT_PWM             PIN_PWM_LIGHT
 #define PIN_GARAGE_SERVO          PIN_PWM_SERVO_GARAGE
 #define PIN_ALARM_BUZZER          PIN_PWM_BUZZER_ALARM
 
 #define PIN_FIRE_LED              11
-#define PIN_ACCESS_LED            46
-#define PIN_FIRE_TEST_SWITCH      44
-#define PIN_ACCESS_TEST_SWITCH    45
+#define PIN_ACCESS_LED            46   /* LED alarma acceso disparada */
+#define PIN_FIRE_TEST_SWITCH      44   /* Demo: HIGH simula incendio armado */
+#define PIN_ACCESS_TEST_SWITCH    45   /* Demo: HIGH simula intrusión armada */
 
 #define PIN_DOOR_LED              43
 #define PIN_BUZZER_ALARM          PIN_PWM_BUZZER_ALARM
@@ -131,7 +131,8 @@
 #define REMOTE_LINE_MAX            64
 #define REMOTE_MAX_TOKENS           5
 
-/* Identificadores de UART: 0 = debug/eventos, 1 = comandos remotos (Virtual Terminal). */
+/* Identificadores de UART: 0 = debug/eventos, 1 = comandos remotos (Virtual Terminal).
+ * UART_Bridge_Task reenvía RX de UART0 al parser remoto (UART1). */
 #define UART_DEBUG_ID               0
 #define UART_REMOTE_ID              1
 

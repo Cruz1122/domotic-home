@@ -29,7 +29,8 @@ La plataforma final del proyecto es ATmega2560 / Arduino Mega 2560. La placa obs
 | Calefactor | LED o relé |
 | Ventilador | LED o relé |
 | Habitación de juegos | Estado lógico + LCD + evento serial |
-| Equipo de sonido | PWM proporcional al volumen + LCD |
+| Equipo de sonido | Estado lógico en LCD + eventos UART (sin PWM físico) |
+| LED garaje abierto | D8: indica cuando el servo del garaje está abierto |
 
 ## UART usada por la aplicación
 
@@ -93,14 +94,15 @@ Fuente de verdad: `docs/06_MAPEO_PINES_ATMEGA2560.md`.
 | MQ-2 AO | A0 | Entrada ADC |
 | Pot dimmer | A1 | Entrada ADC |
 | LED puerta principal | D43 | Digital |
-| LED iluminación | D7 | PWM |
-| PWM sonido | D8 | PWM |
-| Servo garaje | D9 | PWM/timer |
+| LED iluminación | D7 | PWM (Timer4 OC4B) |
+| LED garaje abierto | D8 | Digital |
+| Servo garaje | D9 | PWM/timer (Timer1) |
 | Calefactor simulado | D40 | Digital |
 | Ventilador simulado | D41 | Digital |
 | Horno simulado | D42 | Digital |
-| Buzzer alarma acceso | D10 | PWM/digital |
+| Buzzer alarma acceso | D10 | Digital |
 | LED alarma incendio | D11 | Digital |
+| LED alarma acceso | D46 | Digital |
 | Pulsador test incendio | D44 | Digital (entrada, pull-up interno) |
 | Pulsador test intrusión | D45 | Digital (entrada, pull-up interno) |
 
@@ -142,14 +144,21 @@ Fuente de verdad: `docs/06_MAPEO_PINES_ATMEGA2560.md`.
 #define PIN_OVEN_LED             42
 
 #define PIN_DOOR_LED             43
-#define PIN_LIGHT_PWM            7
-#define PIN_SOUND_PWM            8
-#define PIN_GARAGE_SERVO         9
-#define PIN_ALARM_BUZZER         10
-#define PIN_FIRE_LED            11
+#define PIN_PWM_LIGHT              7
+#define PIN_GARAGE_SERVO_LED       8
+#define PIN_PWM_SERVO_GARAGE       9
+#define PIN_PWM_BUZZER_ALARM      10
+#define PIN_FIRE_LED              11
+#define PIN_ACCESS_LED            46
+#define PIN_FIRE_TEST_SWITCH      44
+#define PIN_ACCESS_TEST_SWITCH    45
 
-#define ADC_MQ2                  0
-#define ADC_LIGHT_POT            1
+#define PIN_LIGHT_PWM             PIN_PWM_LIGHT
+#define PIN_GARAGE_SERVO          PIN_PWM_SERVO_GARAGE
+#define PIN_ALARM_BUZZER          PIN_PWM_BUZZER_ALARM
+
+#define ADC_MQ2                   0
+#define ADC_LIGHT_POT             1
 ```
 
 ## Validación eléctrica mínima

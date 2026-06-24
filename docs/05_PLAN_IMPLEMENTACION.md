@@ -26,15 +26,14 @@ Criterios de aceptación:
 Entregables:
 
 - ADC para MQ-2 y potenciómetro de iluminación.
-- PWM para iluminación.
-- PWM para volumen.
+- PWM para iluminación (D7).
 - Salidas digitales para LEDs/relé.
 
 Criterios de aceptación:
 
 - El potenciómetro de iluminación cambia porcentaje en LCD.
-- El LED de iluminación cambia intensidad.
-- El volumen remoto cambia porcentaje y PWM.
+- El LED de iluminación (D7) cambia intensidad.
+- El volumen remoto se refleja en LCD y eventos UART (sin PWM físico).
 - Las salidas digitales responden a comandos de prueba.
 
 ## Fase 3: seguridad
@@ -74,10 +73,11 @@ Criterios de aceptación:
 Entregables:
 
 - Driver SPI propio.
-- Inicialización del RC522.
+- Integración con librería MFRC522 (`rfid_rc522_lib.cpp`).
 - Detección de tarjeta.
 - Lectura de UID.
 - Validación contra tabla de usuarios.
+- Inyección de UID por UART0 para simulación Proteus.
 
 Criterios de aceptación:
 
@@ -116,7 +116,7 @@ Criterios de aceptación:
 
 - El horno se apaga solo al terminar.
 - Mientras el horno está activo, PIR/RFID/teclado siguen funcionando.
-- `RADIO VOL <0-100>` actualiza la salida PWM proporcional.
+- `RADIO VOL <0-100>` actualiza el setpoint remoto en LCD y eventos UART.
 - Mercado permite agregar y consultar productos.
 
 ## Fase 8: integración y demo
@@ -147,7 +147,7 @@ Criterios de aceptación:
 | 2 | Implementar seguridad PIR/MQ-2 |
 | 2 | Implementar EEPROM |
 | 3 | Implementar SPI |
-| 3 | Implementar RC522 mínimo |
+| 3 | Implementar RC522 con librería MFRC522 |
 | 3 | Implementar tabla de usuarios |
 | 4 | Implementar menús de administración |
 | 4 | Implementar servo garaje |
@@ -170,4 +170,6 @@ Una función está terminada solo si:
 
 - Login global eliminado: el código solo se usa para activar o desactivar alarmas.
 - `UART2` y `UART3` fuera del flujo funcional.
-- Volumen del sonido migrado de potenciómetro a `UART1 / RADIO VOL <0-100>`.
+- Volumen del sonido migrado de potenciómetro a `UART1 / RADIO VOL <0-100>` (estado lógico, sin PWM).
+- Pin D8 reasignado de PWM de sonido a LED de garaje abierto.
+- Bridge UART0→UART1: comandos remotos también desde el Monitor Serie de Arduino IDE.

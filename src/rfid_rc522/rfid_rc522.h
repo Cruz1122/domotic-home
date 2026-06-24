@@ -1,10 +1,10 @@
 /*
  * Módulo: RFID (RC522)
- * Driver híbrrido de lectura de UID:
+ * Driver híbrido de lectura de UID:
  *  - FUENTE 1: RC522 real por SPI con librería MFRC522. Si al arrancar no
  *    detecta el chip, se autodesactiva.
  *  - FUENTE 2: inyección de UID por UART0 (simulación Proteus): se teclea el
- *    UID en hex + Enter en el Virtual Terminal.
+ *    UID en hex + Enter en el Monitor Serie (UART0).
  * Así el MISMO firmware sirve en placa real y en Proteus (definir RFID_SIMULATED=1
  * deshabilita el RC522 y deja solo la inyección por UART).
  */

@@ -91,6 +91,7 @@ void EEPROM_Init(void) {
 }
 
 void EEPROM_Task(void) {
+    /* Reservado: la EEPROM no se escribe en el loop, solo ante cambios explícitos. */
 }
 
 uint8_t EEPROM_GetUserCount(void) {

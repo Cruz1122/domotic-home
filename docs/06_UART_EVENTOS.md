@@ -7,7 +7,17 @@
 
 `UART2 / Serial2` y `UART3 / Serial3` no participan del flujo funcional actual.
 
-Las respuestas de comandos remotos deben salir limpias por `UART1`, con prefijos como `[OK]`, `[ERR]` o `[STATUS]`. Las trazas y mensajes de depuración deben observarse por `UART0`.
+Las respuestas de comandos remotos salen por `UART1` con prefijos `[OK]`, `[ERR]` o `[STATUS]`, y se replican también en `UART0` (vía `UART1_Task`). Las trazas y mensajes de depuración internos se observan solo por `UART0`.
+
+### Bridge UART0 → UART1
+
+Para demos con un solo cable USB, `UART_Bridge_Task()` reenvía lo tecleado en el Monitor Serie (UART0 RX) al parser de comandos remotos (buffer RX de UART1). Así se pueden enviar `HELP`, `RADIO ON`, etc. desde el mismo terminal donde aparecen los eventos `[BOOT]`, `[RFID]`, etc.
+
+Reglas del bridge:
+
+- Solo reenvía caracteres imprimibles y `\r`/`\n`.
+- No hace eco local en UART0 (el IDE ya muestra lo tecleado).
+- Las respuestas `[OK]`/`[ERR]`/`[STATUS]` salen por UART1 y se copian a UART0.
 
 Para el detalle completo de comandos remotos disponibles, ver `docs/07_COMANDOS_USART.md`.
 
@@ -99,15 +109,12 @@ UART_Newline();
 
 ## Inyección de UID RFID por UART (simulación Proteus / pruebas)
 
-El driver `rfid_rc522` es híbrido: lee de un RC522 real por SPI **y** acepta
-UIDs inyectados por la UART consola (UART0). El mismo firmware funciona en la
-placa física (RC522 presente) y en Proteus (sin RC522: se teclea el UID).
+El driver `rfid_rc522` es híbrido:
 
-- En el arranque, si no se detecta el RC522, se reporta
-  `[RFID] RC522 ausente, lectura por UART habilitada` y queda solo la
-  inyección por UART.
-- Para simular una tarjeta: en el terminal asociado a la consola debug (`UART0`), escribir el
-  UID como pares hexadecimales (4, 7 o 10 bytes — longitudes ISO14443A) y Enter.
+- **Fuente 1:** RC522 real por SPI con librería MFRC522 (`rfid_rc522_lib.cpp`). Si al arrancar no detecta el chip, se autodesactiva.
+- **Fuente 2:** inyección de UID por UART0 (simulación Proteus): se teclea el UID en hex + Enter en el Monitor Serie.
+
+El mismo firmware sirve en placa real y en Proteus (definir `RFID_SIMULATED=1` deshabilita el RC522 y deja solo la inyección por UART).
 
 ```
 AABBCCDD<Enter>                  → UID corto de 4 bytes
@@ -127,8 +134,8 @@ tarjeta hasta que se retire del campo.
 
 ## Reglas
 
-1. Los módulos funcionales NO tocan registros UART ni la ISR.
-2. Solo llaman funciones de `uart.h`: `UART_WriteString`, `UART_WriteDecimal`, `UART_Newline`, `UART_WriteEvent`.
+1. Los módulos funcionales NO tocan registros UART directamente.
+2. Solo llaman funciones de `uart.h`: `UART_WriteString`, `UART_WriteDecimal`, `UART_Newline`, `UART_WriteEvent` (UART0) o las equivalentes `UART1_*` (respuestas remotas).
 3. No incluir `\n` manual en los mensajes — usar `UART_Newline()` o `UART_WriteEvent()`.
-4. Los eventos se encolan en un buffer circular TX (128 bytes) y se transmiten por interrupción.
+4. UART0 y UART1 se atienden por sondeo en `UART_Task()` / `UART1_Task()` (buffers circulares, sin ISRs dedicadas en el driver propio).
 5. La función `UART_WriteEvent(tag, msg)` equivale a: `WriteString(tag) + WriteString(msg) + Newline()`.

@@ -3,7 +3,8 @@
  * Lee PIR1/PIR2 (GPIO) y MQ-2 (ADC no bloqueante) y gestiona dos alarmas.
  * Alarma de acceso: disparada por flanco de un PIR cuando está armada.
  * Alarma de incendio: disparada por humo sobre el umbral (con antirrebote).
- * Salidas: buzzer (acceso) y LED de fuego (incendio).
+ * Salidas: buzzer D10, LED alarma acceso D46, LED incendio D11.
+ * Pulsadores de prueba: D44 (incendio), D45 (intrusión), activos en HIGH.
  */
 #include "Seguridad.h"
 #include "../gpio/gpio.h"

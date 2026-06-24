@@ -17,7 +17,7 @@ EEPROM (4 KB — ATmega2560)
 0x010  Usuario 0                sizeof(user_record_t)
 0x010 + N * sizeof(user_record_t)  Usuario N
 ...    Tabla de hasta 10 usuarios
-0x100  Lista de mercado (futuro)
+0x100  Lista de mercado (implementada)
 ```
 
 En el firmware actual para AVR, `user_record_t` ocupa `22` bytes porque no hay
@@ -161,9 +161,11 @@ Flujo de prueba:
 1. Primer arranque → EEPROM vacía → format + escribe user 0.
 2. Reinicio (simulado por reset) → lee user 0 → "persistido OK".
 
-## Lista de mercado (futuro)
+## Lista de mercado (desde 0x100)
 
-Para evitar texto libre con teclado 4x4, se recomienda lista de productos predefinidos.
+Persiste la lista de compras configurada por `UART1` (`MERCADO ADD`, `MERCADO CLEAR`). Cabecera con magic `'M'` en `EEPROM_MARKET_ADDR`.
+
+Para evitar texto libre con teclado 4x4, se usa catálogo de productos predefinidos.
 
 ```c
 #define MARKET_MAX_ITEMS 8

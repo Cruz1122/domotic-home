@@ -1,7 +1,9 @@
 /*
  * Módulo: Accesos — implementación
  * Cada modo (access_mode_t) decide qué hacer con el UID leído.
- * Las aperturas son temporizadas y no bloqueantes (LED de puerta y servo del garaje).
+ * Las aperturas son temporizadas y no bloqueantes:
+ *   puerta principal: LED D43 encendido 2 s;
+ *   garaje: servo abierto 10 s con LED D8 indicador.
  * Los cupos de juegos y la recarga se persisten en EEPROM.
  */
 #include "Accesos.h"
@@ -11,8 +13,8 @@
 #include "../servo/servo_pwm.h"
 #include "../uart/uart.h"
 
-#define DOOR_OPEN_MS    2000U
-#define GARAGE_OPEN_MS 10000U
+#define DOOR_OPEN_MS    2000U   /* LED puerta principal encendido tras acceso RFID */
+#define GARAGE_OPEN_MS 10000U   /* Servo garaje abierto antes de cerrar solo */
 
 static access_mode_t current_mode;
 static uint8_t       pending_credits;
@@ -32,7 +34,7 @@ static char    result_msg[17];
 static uint8_t result_pending;
 
 /* ----------------------------------------------------------
- *  Internal helpers
+ *  Helpers internos
  * ---------------------------------------------------------- */
 
 static void set_result(const char *msg) {

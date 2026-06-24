@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/Arquitectura-Maquina_de_estados-555555?labelColor=6A1B9A" alt="Máquina de estados" />
 </p>
 
-Firmware para ATmega2560 de un sistema domótico académico con control de seguridad, accesos RFID, confort ambiental y servicios remotos. Escrito en C puro, sin librerías externas.
+Firmware para ATmega2560 de un sistema domótico académico con control de seguridad, accesos RFID, confort ambiental y servicios remotos. Escrito en C puro; el RFID usa la librería externa [MFRC522](https://github.com/miguelbalboa/rfid) (adaptador en `src/rfid_rc522/rfid_rc522_lib.cpp`). El resto son drivers propios.
 
 ## Hardware
 
@@ -31,8 +31,8 @@ El detalle de pines está en [`docs/02_HARDWARE_Y_PINOUT.md`](docs/02_HARDWARE_Y
 
 ### Seguridad
 
-- Alarma de acceso: se activa/desactiva por código. Dispara con sensores PIR.
-- Alarma de incendio: se activa/desactiva por código. Dispara con MQ-2 por ADC.
+- Alarma de acceso: se activa/desactiva por código. Dispara con sensores PIR o pulsador de prueba (D45).
+- Alarma de incendio: se activa/desactiva por código. Dispara con MQ-2 por ADC o pulsador de prueba (D44).
 - Eventos críticos reportados por UART0.
 
 ### Accesos RFID
@@ -47,9 +47,9 @@ El detalle de pines está en [`docs/02_HARDWARE_Y_PINOUT.md`](docs/02_HARDWARE_Y
 
 ### Confort
 
-- Iluminación dimerizada: LED con PWM, nivel definido por potenciómetro.
+- Iluminación dimerizada: LED con PWM (D7), nivel definido por potenciómetro.
 - Temperatura: control simulado de calefactor y ventilador.
-- Sonido remoto: ON/OFF y volumen por UART1, salida PWM proporcional.
+- Sonido remoto: ON/OFF y volumen por UART1; estado lógico en LCD y eventos por UART0 (sin salida PWM física).
 
 ### Servicios remotos (UART1)
 
@@ -89,16 +89,24 @@ void setup(void) {
 
 void loop(void) {
     uint32_t now_ms = Timer_Millis();
+
+    UART_Task();
+    UART1_Task();
+    UART_Bridge_Task();
+
     RFID_Task(now_ms);
     Seguridad_Task(now_ms);
     Accesos_Task(now_ms);
     Confort_Task(now_ms);
     Remoto_Task(now_ms);
     UI_Task(now_ms);
+
+    UART_Task();
+    UART1_Task();
 }
 ```
 
-`UART0` se usa para debug y eventos del sistema. `UART1` para control remoto.
+`UART0` se usa para debug y eventos del sistema. `UART1` para control remoto. Un bridge reenvía lo tecleado en el Monitor Serie (UART0) al parser de comandos, y las respuestas de UART1 se replican en ambos canales.
 
 ## Estructura del repositorio
 
@@ -119,7 +127,7 @@ domotic-home.ino          Orquestador: setup + loop
 | pwm | [`pwm.h`](src/pwm/pwm.h), [`pwm.c`](src/pwm/pwm.c) |
 | servo | [`servo_pwm.h`](src/servo/servo_pwm.h), [`servo_pwm.c`](src/servo/servo_pwm.c) |
 | eeprom | [`eeprom.h`](src/eeprom/eeprom.h), [`eeprom.c`](src/eeprom/eeprom.c) |
-| rfid_rc522 | [`rfid_rc522.h`](src/rfid_rc522/rfid_rc522.h), [`rfid_rc522.c`](src/rfid_rc522/rfid_rc522.c) |
+| rfid_rc522 | [`rfid_rc522.h`](src/rfid_rc522/rfid_rc522.h), [`rfid_rc522.c`](src/rfid_rc522/rfid_rc522.c), [`rfid_rc522_lib.cpp`](src/rfid_rc522/rfid_rc522_lib.cpp) |
 | keypad | [`keypad.h`](src/keypad/keypad.h), [`keypad.c`](src/keypad/keypad.c) |
 
 **Módulos de aplicación**

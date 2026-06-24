@@ -10,7 +10,7 @@ La arquitectura correcta no es una cadena de `while` internos en cada menú. Eso
 
 ```txt
 Aplicación
-  Proyecto_Domotica.ino
+  domotic-home.ino
 
 Servicios funcionales
   seguridad/      alarmas PIR y MQ-2
@@ -22,13 +22,14 @@ Interfaz
   ui/             LCD, menús, captura de teclado
 
 Drivers propios
-  uart/           serial por registros
+  uart/           UART0 (debug) + UART1 (remoto) + bridge
   spi/            bus SPI para RC522
-  rfid_rc522/     comandos MFRC522 mínimos
+  rfid_rc522/     MFRC522 vía librería externa + inyección UART0
   lcd/            LCD paralelo
   keypad/         teclado matricial 4x4
   adc/            potenciómetro de luz y MQ-2
-  pwm/            LED dimmer, sonido, servo si aplica
+  pwm/            LED dimmer (D7)
+  servo_pwm/      servo garaje (Timer1) + LED D8
   timer/          ticks del sistema
   eeprom/         persistencia
 
@@ -120,15 +121,22 @@ void setup(void)
 
 void loop(void)
 {
-    timer_task();
+    uint32_t now_ms = timer_millis();
+
+    uart_task();
+    uart1_task();
+    uart_bridge_task();
+
     keypad_task();
-    rfid_task();
-    seguridad_task();
-    accesos_task();
-    confort_task();
-    servicios_task();
-    ui_task();
-    serial_task();
+    rfid_task(now_ms);
+    seguridad_task(now_ms);
+    accesos_task(now_ms);
+    confort_task(now_ms);
+    servicios_task(now_ms);
+    ui_task(now_ms);
+
+    uart_task();
+    uart1_task();
 }
 ```
 
@@ -182,4 +190,4 @@ Formato recomendado:
 9. Horno no bloqueante.
 10. Mercado.
 
-La integración RFID no debe dejarse para el final. El RC522 es el módulo con mayor riesgo porque exige SPI, temporización, lectura de registros y validación de UID sin librería externa.
+La integración RFID no debe dejarse para el final. El RC522 exige SPI, temporización y validación de UID; el firmware usa la librería MFRC522 con un adaptador C++ y, en Proteus, acepta UIDs inyectados por UART0.

@@ -45,7 +45,7 @@ void setup(void) {
     Seguridad_Init();
     Accesos_Init();
     Confort_Init();
-    Remoto_Init();
+    Remoto_Init();   /* Inicializa UART1 y carga lista de mercado desde EEPROM */
     UI_Init();
 }
 
@@ -69,6 +69,7 @@ void loop(void) {
     Remoto_Task(now_ms);
     UI_Task(now_ms);
 
+    /* Segunda pasada UART: drena TX pendiente tras las tareas del ciclo. */
     UART_Task();
     UART1_Task();
 }

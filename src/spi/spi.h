@@ -1,7 +1,8 @@
 /*
  * Módulo: SPI
- * Driver SPI maestro para hablar con el lector RFID RC522.
- * Pines: SS=53, MOSI=51, MISO=50, SCK=52 (ver Definiciones.h).
+ * Driver SPI maestro en C para el ATmega2560 (SS=53, MOSI=51, MISO=50, SCK=52).
+ * Nota: el RC522 activo usa SPI.h de Arduino vía rfid_rc522_lib.cpp; este driver
+ * queda en el repo como capa propia reutilizable.
  */
 #ifndef SPI_H
 #define SPI_H

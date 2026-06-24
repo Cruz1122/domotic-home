@@ -39,6 +39,15 @@ C Amb D Serv
 OFF *Volver
 ```
 
+Pulsadores de prueba (Proteus/demo sin sensores):
+
+| Pin | Función |
+|---|---|
+| D44 | Simula disparo de alarma de incendio (con alarma armada) |
+| D45 | Simula intrusión de alarma de acceso (con alarma armada) |
+
+Conectar cada pulsador entre el pin y VCC; el firmware usa pull-up interno.
+
 ## Pantalla de código para alarmas
 
 ```txt
@@ -170,7 +179,7 @@ Sonido ON
 Vol 45% 1ON 2OFF
 ```
 
-El volumen mostrado corresponde al último setpoint remoto recibido por `UART1` con `RADIO VOL <0-100>`.
+El volumen mostrado corresponde al último setpoint remoto recibido por `UART1` con `RADIO VOL <0-100>`. No hay salida PWM de volumen; el pin D8 indica apertura del garaje, no el sonido.
 
 ## Menú servicios
 

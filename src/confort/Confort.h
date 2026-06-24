@@ -1,8 +1,8 @@
 /*
  * Módulo: Confort
- * Iluminación dimerizada por potenciómetro (ADC + PWM) y clima simulado
+ * Iluminación dimerizada por potenciómetro (ADC + PWM en D7) y clima simulado
  * (calefactor/ventilador con LEDs). El equipo de sonido se controla por UART1:
- * ON/OFF y volumen 0-100 por UART1. El potenciómetro NO controla sonido.
+ * ON/OFF y volumen 0-100; solo se refleja en LCD/UART (sin PWM físico).
  */
 #ifndef CONFORT_H
 #define CONFORT_H
