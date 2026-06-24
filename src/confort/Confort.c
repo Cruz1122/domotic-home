@@ -77,9 +77,6 @@ static char *Confort_AppendU16(char *dst, uint16_t value) {
     return dst;
 }
 
-/* Convierte un porcentaje (0-100) en duty PWM (0-255) con curva gamma 2.2
- * para compensar la percepción logarítmica del ojo humano.
- * Sin gamma, los cambios visibles se concentran en el 0-20%. */
 static uint8_t Confort_PctToDuty(uint8_t pct) {
     if (pct > 100U) {
         pct = 100U;

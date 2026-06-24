@@ -10,14 +10,12 @@
 #include <avr/io.h>
 
 void PWM_Init(void) {
-    /* PWM de 8 bits, no invertido, en los tres canales A/B/C. */
     TCCR4A = (1 << COM4B1) | (1 << WGM40);
     TCCR4B = (1 << WGM42) | (1 << CS41)  | (1 << CS40);
 
     GPIO_SetPinMode(PIN_PWM_LIGHT, GPIO_OUT);
 }
 
-/* Ajusta el duty (0-255) del canal correspondiente al pin. */
 void PWM_SetDuty(uint8_t pin, uint8_t duty) {
     uint16_t duty_clamped = duty;
 
