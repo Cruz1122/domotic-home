@@ -54,9 +54,18 @@ static ui_screen_t previous_screen;
 static char input_buf[4];
 static uint8_t input_len;
 
+/* Buffer exclusivo del código admin: no trunca; rechaza dígitos de más al instante. */
+static char code_input_buf[CODE_LEN + 1];
+static uint8_t code_input_len;
+
 static void input_clear(void) {
     input_len = 0;
     input_buf[0] = '\0';
+}
+
+static void code_input_clear(void) {
+    code_input_len = 0;
+    code_input_buf[0] = '\0';
 }
 
 /* Agrega un dígito (máx 3) a la captura numérica en curso. */
@@ -65,6 +74,18 @@ static void input_push(char key) {
         input_buf[input_len++] = key;
         input_buf[input_len] = '\0';
     }
+}
+
+/* Agrega un dígito al código admin. Devuelve 0 si ya hay CODE_LEN dígitos. */
+static uint8_t code_input_push(char key) {
+    if (code_input_len >= CODE_LEN) return 0;
+    code_input_buf[code_input_len++] = key;
+    code_input_buf[code_input_len] = '\0';
+    return 1;
+}
+
+static uint8_t code_input_valid(const char *expected) {
+    return code_input_len == CODE_LEN && strcmp(code_input_buf, expected) == 0;
 }
 
 /* Convierte el buffer de entrada a entero sin signo. */
@@ -92,6 +113,16 @@ static uint32_t rfid_result_tick;
  * sec_code_target: 1=alarma de acceso, 2=alarma de incendio. */
 static uint8_t  sec_code_target;
 static uint8_t  sec_code_error;
+
+static void sec_code_reject(void) {
+    sec_code_error = 1;
+    code_input_clear();
+    if (sec_code_target == 1) {
+        UART_WriteEvent(SER_ALARMA, "Codigo invalido");
+    } else {
+        UART_WriteEvent(SER_FUEGO, "Codigo invalido");
+    }
+}
 
 /* ---- Market state ---- */
 static uint8_t market_add_product;
@@ -164,7 +195,7 @@ static void ui_render(void) {
             } else {
                 lcd_line1[0] = '\0';
                 strcpy(lcd_line1, "Ingrese codigo:");
-                strcpy(lcd_line2, input_buf);
+                strcpy(lcd_line2, code_input_buf);
                 strcat(lcd_line2, " #OK *Vol");
                 lcd_dirty = 1;
             }
@@ -368,12 +399,12 @@ static void ui_handle_key(char key) {
             } else if (key == '1') {
                 sec_code_target = 1;
                 sec_code_error = 0;
-                input_clear();
+                code_input_clear();
                 screen = UI_SEC_CODE_INPUT;
             } else if (key == '2') {
                 sec_code_target = 2;
                 sec_code_error = 0;
-                input_clear();
+                code_input_clear();
                 screen = UI_SEC_CODE_INPUT;
             }
             break;
@@ -383,17 +414,19 @@ static void ui_handle_key(char key) {
             if (sec_code_error) {
                 if (key == '*') {
                     sec_code_error = 0;
-                    input_clear();
+                    code_input_clear();
                     screen = UI_SECURITY;
                 }
             } else {
                 if (key >= '0' && key <= '9') {
-                    input_push(key);
+                    if (!code_input_push(key)) {
+                        sec_code_reject();
+                    }
                 } else if (key == '*') {
-                    input_clear();
+                    code_input_clear();
                     screen = UI_SECURITY;
                 } else if (key == '#') {
-                    if (strcmp(input_buf, CODIGO_ADMIN) == 0) {
+                    if (code_input_valid(CODIGO_ADMIN)) {
                         if (sec_code_target == 1) {
                             Seguridad_SetAccessAlarm(!Seguridad_GetAccessState());
                             UART_WriteEvent(SER_ALARMA, "Codigo valido");
@@ -401,15 +434,10 @@ static void ui_handle_key(char key) {
                             Seguridad_SetFireAlarm(!Seguridad_GetFireState());
                             UART_WriteEvent(SER_FUEGO, "Codigo valido");
                         }
-                        input_clear();
+                        code_input_clear();
                         screen = UI_SECURITY;
                     } else {
-                        sec_code_error = 1;
-                        if (sec_code_target == 1) {
-                            UART_WriteEvent(SER_ALARMA, "Codigo invalido");
-                        } else {
-                            UART_WriteEvent(SER_FUEGO, "Codigo invalido");
-                        }
+                        sec_code_reject();
                     }
                 }
             }
@@ -655,6 +683,7 @@ void UI_Init(void) {
     sec_code_target = 0;
     sec_code_error = 0;
     input_clear();
+    code_input_clear();
     lcd_dirty = 1;
     refresh_tick = 0;
     last_key_pending = 0;
